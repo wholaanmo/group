@@ -83,58 +83,63 @@
         {{ budgetSuccessMessage }}
       </div>
 
-      <div class="budget-display">
-         <div v-if="showBudgetExceededAlert" class="floating-alert">
-          <div class="alert-content">
-            <i class="fas fa-exclamation-triangle"></i>
-            <span>{{ budgetExceededMessage }}</span>
-            <button @click="closeAlert" class="close-alert-btn">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-        </div>
+      <div v-if="showBudgetExceededAlert" class="floating-alert">
+        <div class="alert-content">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>{{ budgetExceededMessage }}</span>
+                  <button @click="closeAlert" class="close-alert-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
 
-        <div class="budget-header">
-          <h3>Allotted Budget</h3>
-          <button v-if="!hasBudget" @click="showAddBudgetForm" class="btn-add">Add</button>
-          <button v-else @click="showEditBudgetForm" class="btn-edit">Edit</button>
-        </div>
+              <div class="budget-display">
+              <div class="budget-header">
+                <h3>Allotted Budget</h3>
+                <button v-if="!hasBudget" @click="showAddBudgetForm" class="btn-add">Add</button>
+                <button v-else @click="showEditBudgetForm" class="btn-edit">Edit</button>
+              </div>
 
 
-        <div class="budget-details" v-if="!isBudgetLoading">
-          <div class="budget-name">
-            <span>Budget Name:</span>
-            <strong>{{ budgetName }}</strong>
-          </div>
+              <div v-if="!isBudgetLoading">
+                <div v-if="hasBudget" class="budget-details">
+                  <div class="budget-name">
+                    <span>Budget Name:</span>
+                    <strong>{{ groupBudget?.budget_name || 'General Budget' }}</strong>
+                  </div>
+                  
+    
+                  <div class="budget-amount">
+                    <span>Budget Amount:</span>
+                    <strong>{{ formatPHP(groupBudget?.budget_amount || 0) }}</strong>
+                  </div>
+                  
+                  <div class="remaining-budget">
+                    <span>Remaining:</span>
+                    <strong :class="{ 'text-danger': remainingBudget < 0 }">
+                      {{ formatPHP(remainingBudget) }}
+                    </strong>
+                  </div>
+    
+                  <div class="budget-progress">
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill"
+                        :style="{ width: budgetProgress + '%' }"
+                        :class="{ exceeded: budgetProgress >= 100 }"
+                      ></div>
+                    </div>
+                    <div class="progress-text">{{ budgetProgress.toFixed(1) }}% used</div>
+                  </div>
+                </div>
 
-          <div class="budget-amount">
-            <span>Budget:</span>
-            <strong class="budget">{{ formatPHP(budgetAmountInput) }}</strong>
-          </div>
-
-          <div class="expenses-amount">
-            <span>Total Expenses:</span>
-            <strong>{{ formatPHP(totalExpenses) }}</strong>
-          </div>
-
-          <div class="remaining-budget">
-            <span>Remaining:</span>
-            <strong :class="{ 'text-danger': remainingBudget < 0 }">{{ formatPHP(remainingBudget) }}</strong>
-          </div>
-
-          <div class="budget-progress">
-            <div class="progress-bar">
-              <div
-                class="progress-fill"
-                :style="{ width: budgetProgress + '%' }"
-                :class="{ exceeded: budgetProgress >= 100 }"
-              ></div>
-            </div>
-            <div class="progress-text">{{ budgetProgress.toFixed(1) }}% used</div>
-          </div>
-        </div>
-
-        <div v-else class="loading">Loading budget...</div>
+                <div v-else>
+                  <p>No budget set for this group</p>
+                </div>
+              </div>
+              <div v-else>
+                <div class="loading-spinner"></div>
+              </div>
 
         <!-- Budget Form Modal -->
         <div v-if="isAddingBudget || isEditingBudget" class="budget-form-modal">
@@ -152,15 +157,9 @@
             </div>
 
             <div class="form-group">
-              <label>Budget Amount (₱):</label>
-              <input
-                type="text"
-                v-model="budgetAmountInput"
-                placeholder="Enter budget amount"
-                @input="formatCurrencyInput"
-                required
-              />
-            </div>
+      <label>Amount (₱)</label>
+      <input v-model="budgetAmountInput" type="number" min="0" step="0.01" @input="formatCurrencyInput">
+    </div>
 
             <div class="form-actions">
               <button @click="isEditingBudget ? updateBudget() : submitAddBudget()" class="btn-save">
@@ -170,9 +169,9 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
-  </div>
 
     <div class="group-wrapper">
     <div class="group-body">
@@ -517,7 +516,7 @@ export default {
       deleteGroupError: '',
       exchangeRate: null,
       lastExchangeRateUpdate: null,
-      budgetAmountValue: 0,
+     // budgetAmountValue: 0,
       remainingBudget: 0,
       budgetProgress: 0,
       budgetName: '',
@@ -526,12 +525,11 @@ export default {
       isAddingBudget: false,
       isEditingBudget: false,
       budgetAmountInput: '',
-      hasBudget: false,
+     //hasBudget: false,
       budgetSuccessMessage: '',
       budgetHideMessage: false,
       showBudgetExceededAlert: false,
       budgetExceededMessage: "Warning: You have exceeded the allotted budget!",
-      // Modals
       showAddExpenseModal: false,
       showEditExpenseModal: false,
       showConfirmationModal: false,
@@ -561,8 +559,23 @@ export default {
       expenses: state => state.expenses,
       loading: state => state.loading,
       error: state => state.error,
-      isAdmin: state => state.isAdmin
+      isAdmin: state => state.isAdmin,
+      groupBudget: state => state.groupBudget || {}
     }),
+
+    hasBudget() {
+    return this.groupBudget !== null && this.groupBudget.budget_amount !== undefined;
+  },
+
+  formattedBudgetAmount() {
+    return this.formatPHP(this.budgetAmountValue);
+  },
+
+  budgetAmountValue() {
+    return this.groupBudget ? parseFloat(this.groupBudget.budget_amount) : 0;
+  },
+
+  
     totalExpenses() {
     return this.totalAmount; // Use totalAmount to dynamically reflect the total of all expenses
   },
@@ -596,12 +609,6 @@ export default {
   return this.filteredExpenses.reduce((total, expense) => {
     return total + (parseFloat(expense.item_price) || 0); 
   }, 0);
-},
-
-  formatPHP() {
-  return (amount) => {
-    return `₱${parseFloat(amount || 0).toFixed(2)}`;
-  };
 },
 
   convertPhpToUsd() {
@@ -658,10 +665,8 @@ export default {
     if (this.groupId) {
       this.isBudgetLoading = true;
       try {
-        const res = await this.$axios.get(`/api/groups/${this.groupId}/budget`);
+        const res = await this.$axios.get(`/api/grp_expenses/groups/${this.groupId}/budget`);
         if (res.data && res.data.amount != null) {
-          this.budgetAmountValue = parseFloat(res.data.amount);
-          this.hasBudget = true;
           this.calculateRemaining();
         }
       } catch (error) {
@@ -737,24 +742,34 @@ export default {
     showError(message) {
     console.error(message);
     },
-    showSuccess(message) {
-      console.log(message); 
-    },
+  showSuccess(message) {
+    if (this._isMounted) { // Check if component is still mounted
+      this.budgetSuccessMessage = message;
+      setTimeout(() => {
+        if (this._isMounted) {
+          this.budgetSuccessMessage = null;
+        }
+      }, 3000);
+    }
+  },
 
     editExpense(expense) {
     this.editingExpense = { ...expense };  // Create a copy of the expense to edit
     this.showEditExpenseModal = true;     // Set the modal visibility to true
   },
 
-    formatPHP(value) {
-    return '₱' + parseFloat(value).toLocaleString();
+  formatPHP(amount) {
+    return `₱${parseFloat(amount || 0).toFixed(2)}`;
   },
+  
   showAddBudgetForm() {
     this.isAddingBudget = true;
+    this.budgetAmountInput = String(this.budgetAmountValue);
     this.budgetAmountInput = '';
   },
   showEditBudgetForm() {
     this.isEditingBudget = true;
+    this.budgetAmountInput = String(this.budgetAmountValue);
     this.budgetAmountInput = this.budgetAmountValue;
   },
   cancelBudgetForm() {
@@ -763,69 +778,71 @@ export default {
   },
 
   async submitAddBudget() {
-  const amount = parseFloat(this.budgetAmountInput); 
+  const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
 
   if (isNaN(amount) || amount <= 0) {
-    console.error('Invalid budget amount');
-    return;  
+    this.showError('Please enter a valid budget amount');
+    return;
   }
 
-  console.log('Group ID:', this.groupId);
-  console.log('Budget Name:', this.budgetName);
-  console.log('Budget Amount:', amount);
-  console.log('Token:', localStorage.getItem('jsontoken'));
-
   try {
-    await this.$axios.post(
-      `/api/grp_expenses/groups/${this.groupId}/budget`,
-      {
-        budget_amount: amount,
-        budget_name: this.budgetName
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-        }
-      }
-    );
+    this.isBudgetLoading = true;
 
-    await this.addGroupBudget({
-      groupId: this.groupId,
+    await this.$store.dispatch('group/addGroupBudget', {
+      groupId: this.localGroupId,
       budgetAmount: amount,
-      budgetName: this.budgetName
+      budgetName: this.budgetName || 'Group Budget'
     });
 
-    this.budgetAmountValue = amount; 
-    this.calculateRemaining();         
-    this.isAddingBudget = false;    
-    this.hasBudget = true;            
-    this.showSuccess('Budget added successfully!');  
-
-    await this.fetchGroupBudget();
-
+    // Reset form and update UI
+    this.isAddingBudget = false;
+    this.budgetAmountInput = '';
+    this.budgetName = '';
+    
+    // Show success message
+    this.$nextTick(() => {
+      this.showSuccess('Budget added successfully!');
+    });
+    
+    // Recalculate remaining budget
+    this.calculateRemaining();
+    
   } catch (err) {
     console.error('Failed to add budget:', {
       error: err,
       response: err.response?.data
     });
     this.showError(err.response?.data?.message || 'Failed to add budget. Please try again.');
+  } finally {
+    this.isBudgetLoading = false;
   }
 },
 
-async fetchGroupBudget() {
+  async fetchGroupBudget() {
     try {
-      const res = await this.$axios.get(`/api/grp_expenses/groups/${this.groupId}/budget`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      this.isBudgetLoading = true;
+      const res = await this.$axios.get(
+        `/api/grp_expenses/groups/${this.groupId}/budget`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
         }
-      });
-      if (res.data && res.data.success) {
-        this.budgetAmountValue = res.data.data.budget_amount;
+      );
+      
+      if (res.data?.success) {
+        this.budgetAmountValue = parseFloat(res.data.data.budget_amount);
+        this.budgetName = res.data.data.budget_name || '';
         this.hasBudget = true;
+        this.calculateRemaining();
+      } else {
+        this.hasBudget = false;
       }
     } catch (err) {
       console.error("Failed to fetch budget:", err);
       this.hasBudget = false;
+    } finally {
+      this.isBudgetLoading = false;
     }
   },
 
@@ -859,33 +876,61 @@ async fetchGroupBudget() {
   }
 },
 
-  async updateBudget() {
-    const amount = parseFloat(this.budgetAmountInput);
+async updateBudget() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(amount) || amount <= 0) {
+      this.showError('Please enter a valid budget amount');
+      return;
+    }
+
     try {
-      await this.$axios.put(
-        `/api/grp_expenses/groups/${this.groupId}/budget/${this.groupId}`,
+      this.isBudgetLoading = true;
+      
+      const res = await this.$axios.put(
+        `/api/grp_expenses/groups/${this.localGroupId}/budget`,
         {
           budget_amount: amount,
-          budget_name: this.budgetName
+          budget_name: this.budgetName || 'Group Budget',
+          user_id: user.id
         },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        { 
+          headers: { 
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}` 
           }
         }
       );
-      this.budgetAmountValue = amount;
+      
+      this.$store.commit('group/SET_GROUP_BUDGET', res.data.data);
       this.calculateRemaining();
       this.isEditingBudget = false;
       this.showSuccess('Budget updated successfully!');
     } catch (err) {
       console.error('Failed to update budget:', err);
+      this.showError(err.response?.data?.message || 'Failed to update budget');
+    } finally {
+      this.isBudgetLoading = false;
     }
   },
+
   calculateRemaining() {
-    this.remainingBudget = this.budgetAmountValue - this.totalAmount; 
-    this.budgetProgress = (this.totalAmount / this.budgetAmountValue) * 100; 
+    if (!this.hasBudget || isNaN(this.budgetAmountValue)) {
+      this.remainingBudget = 0;
+      this.budgetProgress = 0;
+      return;
+    }
+    
+    this.remainingBudget = this.budgetAmountValue - this.totalAmount;
+    const progress = (this.totalAmount / this.budgetAmountValue) * 100;
+    this.budgetProgress = Math.min(progress, 100);
+    
+    if (this.remainingBudget < 0) {
+      this.showBudgetExceededAlert = true;
+      this.budgetExceededMessage = `Warning: Budget exceeded by ${this.formatPHP(Math.abs(this.remainingBudget))}`;
+    }
   },
+
   updateTotalAmount() {
   this.totalAmount = this.expenses.reduce((total, expense) => total + expense.amount, 0);
   this.calculateRemaining();
@@ -896,9 +941,12 @@ async fetchGroupBudget() {
     this.budgetHideMessage = false;
     setTimeout(() => this.budgetHideMessage = true, 3000);
   },
+
   formatCurrencyInput() {
-    this.budgetAmountInput = this.budgetAmountInput.replace(/[^\d.]/g, '');
-  },
+  // Convert to string if it's not already
+  const inputStr = String(this.budgetAmountInput || '');
+  this.budgetAmountInput = inputStr.replace(/[^\d.]/g, '');
+},
 
     toggleGroupList() {
       this.showGroupList = !this.showGroupList;
@@ -972,34 +1020,38 @@ async fetchGroupBudget() {
     },
 
     async initializeGroupData() {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const token = localStorage.getItem('jsontoken');
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = localStorage.getItem('jsontoken');
 
-      if (!user || !token) {
-        this.$router.push('/login');
-        return;
-      }
+  if (!user || !token) {
+    this.$router.push('/login');
+    return;
+  }
 
-      if (!this.localGroupId) {
+  if (!this.localGroupId) {
     this.$router.push('/GC');
     return;
   }
 
-      try {
-        await Promise.all([
-          this.fetchGroupData(),
-          this.loadExpenses()
-        ]);
-        
-        // Verify access after loading
-        if (!this.hasGroupAccess) {
-          this.$router.replace('/GC');
-        }
-      } catch (err) {
-        console.error('Failed to load group data:', err);
-        this.$router.replace('/GC');
-      }
-    },
+  try {
+    await Promise.all([
+      this.fetchGroupData(),
+      this.loadExpenses(),
+      this.$store.dispatch('group/fetchGroupBudget', this.localGroupId)
+    ]);
+    
+    // Call calculateRemaining after all data is loaded
+    this.calculateRemaining();
+    
+    // Verify access after loading
+    if (!this.hasGroupAccess) {
+      this.$router.replace('/GC');
+    }
+  } catch (err) {
+    console.error('Failed to load group data:', err);
+    this.$router.replace('/GC');
+  }
+},
     
     async fetchGroupData() {
  const user = JSON.parse(localStorage.getItem('user'));
