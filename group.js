@@ -155,7 +155,11 @@ async fetchGroupBudget({ commit }, groupId) {
 },
 
 
-async addGroupBudget({ commit }, { groupId, userId, budgetAmount, budgetName }) {
+async addGroupBudget({ commit, state }, { groupId, budgetAmount, budgetName }) {
+  if (!state.isAdmin) {
+    throw new Error('Unauthorized: Only admins can add budgets');
+  }
+
   try {
     const res = await axios.post(
       `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
@@ -179,7 +183,10 @@ async addGroupBudget({ commit }, { groupId, userId, budgetAmount, budgetName }) 
   }
 },
 
-async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
+async updateGroupBudget({ commit, state }, { groupId, budgetAmount, budgetName }) {
+  if (!state.isAdmin) {
+    throw new Error('Unauthorized: Only admins can update budgets');
+  }
   try {
     const res = await axios.put(
       `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
