@@ -1,32 +1,51 @@
 const pool = require('../../config/database');  // Assuming this is the correct path to your DB connection
 
 module.exports = {
- addBudget: async (data) => {
-  try {
-    const [results] = await pool.query(
-      `INSERT INTO group_budgets 
-       (group_id, budget_amount, budget_name, created_at) 
-       VALUES (?, ?, ?, NOW())`,
-      [data.groupId, data.budgetAmount, data.budgetName]
-    );
-    return results;
-  } catch (err) {
-    throw err;
-  }
-},
+  addBudget: async (data) => {
+    try {
+      // Check if budget already exists for this group
+      const existing = await pool.query(
+        'SELECT id FROM group_budgets WHERE group_id = ?',
+        [data.groupId]
+      );
+      
+      if (existing[0].length > 0) {
+        throw new Error('This group already has a budget');
+      }
+  
+      const [result] = await pool.query(
+        `INSERT INTO group_budgets 
+         (group_id, user_id, budget_amount, budget_name, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          data.groupId, 
+          data.userId || null, // Accept NULL user_id
+          data.budgetAmount, 
+          data.budgetName || 'Group Budget'
+        ]
+      );
+      
+      return result[0];
+    } catch (err) {
+      throw err;
+    }
+  },
 
   updateBudget: async (data) => {
     try {
-      const [results] = await pool.query(
+      await pool.query(
         `UPDATE group_budgets 
-         SET 
-           budget_amount = ?,
-           updated_at = NOW() 
-         WHERE 
-           group_id = ?`,
-        [data.budgetAmount, data.groupId]
+         SET budget_amount = ?, budget_name = ?, updated_at = NOW()
+         WHERE group_id = ?`,
+        [data.budgetAmount, data.budgetName || 'Group Budget', data.groupId]
       );
-      return results;
+      
+      // Return the updated budget data
+      const [updated] = await pool.query(
+        `SELECT * FROM group_budgets WHERE group_id = ?`,
+        [data.groupId]
+      );
+      return updated[0];
     } catch (err) {
       throw err;
     }
@@ -62,7 +81,7 @@ module.exports = {
         `SELECT id FROM group_budgets WHERE group_id = ?`,
         [groupId]
       );
-      return results.length > 0;  // Returns true if budget exists
+      return results.length > 0;
     } catch (err) {
       throw err;
     }
