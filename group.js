@@ -10,6 +10,7 @@ function getDefaultState() {
     },
     members: [],
     expenses: [],
+    groupBudget: null,
     loading: false,
     error: null,
     isAdmin: false
@@ -20,6 +21,9 @@ export default {
     namespaced: true,
     state: getDefaultState(),
     mutations: {
+      SET_GROUP_BUDGET(state, budget) {
+        state.groupBudget = budget || null;
+      },
       RESET_STATE(state) {
         Object.assign(state, getDefaultState());
       },
@@ -137,49 +141,52 @@ export default {
       
 async fetchGroupBudget({ commit }, groupId) {
   try {
-    const res = await axios.get(`/api/grp_expenses/groups/${groupId}/budget`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-      }
-    });
+    const res = await axios.get(
+      `/api/grp_expenses/groups/${groupId}/budget`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('jsontoken')}` }
+  });
     
-    if (res.data.success) {
-      return res.data.data; // Return the budget data
-    }
-    throw new Error(res.data.message || 'Failed to fetch budget');
+    commit('SET_GROUP_BUDGET', res.data.success ? res.data.data : null);
+    return res.data.data;
   } catch (err) {
-    console.error('Fetch budget error:', err);
+    console.error('Failed to fetch budget:', err);
     throw err;
   }
 },
 
-async addGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
+
+async addGroupBudget({ commit }, { groupId, userId, budgetAmount, budgetName }) {
   try {
     const res = await axios.post(
-      `/api/grp_expenses/groups/${groupId}/budget`,
-      { budget_amount: budgetAmount, budget_name: budgetName },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
+      { 
+        budget_amount: budgetAmount,
+        budget_name: budgetName || 'Group Budget',
+        user_id: userId // Now using the userId parameter
+      },
+      { 
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}` 
         }
       }
     );
     
-    if (res.data.success) {
-      return res.data.data;
-    }
-    throw new Error(res.data.message || 'Failed to add budget');
+    commit('SET_GROUP_BUDGET', res.data.data);
+    return res.data;
   } catch (err) {
-    console.error('Add budget error:', err);
+    console.error('Failed to add budget:', err);
     throw err;
   }
 },
 
-async updateGroupBudget({ commit }, { groupId, budgetId, budgetAmount, budgetName }) {
+async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
   try {
     const res = await axios.put(
-      `/api/grp_expenses/groups/${groupId}/budget/${budgetId}`,
-      { budget_amount: budgetAmount, budget_name: budgetName },
+      `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
+      { 
+        budget_amount: budgetAmount, 
+        budget_name: budgetName || 'Group Budget' 
+      },
       {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
@@ -187,10 +194,8 @@ async updateGroupBudget({ commit }, { groupId, budgetId, budgetAmount, budgetNam
       }
     );
     
-    if (res.data.success) {
-      return res.data.data;
-    }
-    throw new Error(res.data.message || 'Failed to update budget');
+    commit('SET_GROUP_BUDGET', res.data.data);
+    return res.data;
   } catch (err) {
     console.error('Update budget error:', err);
     throw err;
