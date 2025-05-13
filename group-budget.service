@@ -1,0 +1,95 @@
+const pool = require('../../config/database');  // Assuming this is the correct path to your DB connection
+
+module.exports = {
+ addBudget: async (data) => {
+  try {
+    const [results] = await pool.query(
+      `INSERT INTO group_budgets 
+       (group_id, budget_amount, budget_name, created_at) 
+       VALUES (?, ?, ?, NOW())`,
+      [data.groupId, data.budgetAmount, data.budgetName]
+    );
+    return results;
+  } catch (err) {
+    throw err;
+  }
+},
+
+  updateBudget: async (data) => {
+    try {
+      const [results] = await pool.query(
+        `UPDATE group_budgets 
+         SET 
+           budget_amount = ?,
+           updated_at = NOW() 
+         WHERE 
+           group_id = ?`,
+        [data.budgetAmount, data.groupId]
+      );
+      return results;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  getBudgetByGroupId: async (groupId) => {
+    try {
+      const [results] = await pool.query(
+        `SELECT * FROM group_budgets WHERE group_id = ?`,
+        [groupId]
+      );
+      return results[0] || null;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  deleteBudget: async (groupId) => {
+    try {
+      const [results] = await pool.query(
+        `DELETE FROM group_budgets WHERE group_id = ?`,
+        [groupId]
+      );
+      return results;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  checkBudgetExists: async (groupId) => {
+    try {
+      const [results] = await pool.query(
+        `SELECT id FROM group_budgets WHERE group_id = ?`,
+        [groupId]
+      );
+      return results.length > 0;  // Returns true if budget exists
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  getBudgetsByGroup: async (groupId) => {
+    try {
+      const [results] = await pool.query(
+        `SELECT id, group_id, budget_amount, budget_name, created_at 
+         FROM group_budgets 
+         WHERE group_id = ?`,
+        [groupId]
+      );
+      return results;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  getAllBudgets: async () => {
+    try {
+      const [results] = await pool.query(
+        `SELECT id, group_id, budget_amount, budget_name, created_at FROM group_budgets`
+      );
+      return results;
+    } catch (err) {
+      throw err;
+    }
+  }
+};
