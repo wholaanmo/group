@@ -2,10 +2,10 @@ const groupBudgetService = require('../grp_expenses/group-budget.service');
 
 module.exports = {
   addBudget: async (req, res) => {
-  try {
-    const groupId = parseInt(req.params.groupId, 10);
-    const budget_amount = parseFloat(req.body.budget_amount);
-    const budget_name = req.body.budget_name;
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const { budget_amount, budget_name } = req.body;
+      const userId = req.user.id;
 
     if (isNaN(groupId)) {
       return res.status(400).json({
@@ -14,30 +14,28 @@ module.exports = {
       });
     }
 
-    if (isNaN(budget_amount)) {
+      const amount = parseFloat(budget_amount);
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({
+          success: 0,
+          message: "Budget amount must be a positive number"
+        });
+      }
+
+    // Check if a budget already exists for this group
+    const existing = await groupBudgetService.getBudgetByGroupId(groupId);
+    if (existing) {
       return res.status(400).json({
         success: 0,
-        message: "Budget amount is required and must be a valid number"
+        message: "Budget already exists for this group"
       });
     }
 
-    console.log("Adding budget with:", { groupId, budget_amount, budget_name });
-    console.log("budget_name type:", typeof budget_name, "| value:", budget_name);
-    // Check if a budget already exists for this group
-    const existingBudget = await groupBudgetService.checkBudgetExists(groupId);
-
-    if (existingBudget) {
-      return res.status(409).json({
-        success: 0,
-        message: "Budget already set for this group. Try updating it instead."
-      });
-    }
-
-    // ✅ Correct object syntax
     const result = await groupBudgetService.addBudget({
       groupId,
-      budgetAmount: budget_amount,
-      budgetName: budget_name
+      userId,
+      budgetAmount: amount,
+      budgetName: budget_name || 'Group Budget'
     });
 
     return res.json({
@@ -54,57 +52,59 @@ module.exports = {
   }
 },
 
-  updateBudget: async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const groupId = parseInt(req.params.groupId, 10);
-      const budget_amount = parseFloat(req.body.budget_amount);
+updateBudget: async (req, res) => {
+  try {
+    const groupId = parseInt(req.params.groupId, 10);
+    const { budget_amount, budget_name } = req.body;
 
-      if (isNaN(id) || isNaN(groupId)) {
-        return res.status(400).json({
-          success: 0,
-          message: "Valid ID and Group ID are required"
-        });
-      }
-
-      if (isNaN(budget_amount)) {
-        return res.status(400).json({
-          success: 0,
-          message: "Budget amount must be a valid number"
-        });
-      }
-
-      // Check if the budget exists for this group
-      const currentBudget = await groupBudgetService.getBudgetByGroupId(groupId);
-
-      if (!currentBudget) {
-        return res.status(404).json({
-          success: 0,
-          message: "Budget not found for this group"
-        });
-      }
-
-      // Update the budget
-      const result = await groupBudgetService.updateBudget(id, groupId, budget_amount);
-
-      return res.json({
-        success: 1,
-        message: "Budget updated successfully",
-        data: result
-      });
-    } catch (err) {
-      console.error("Error updating budget:", err);
-      return res.status(500).json({
+    if (isNaN(groupId)) {
+      return res.status(400).json({
         success: 0,
-        message: err.message || "Database error occurred"
+        message: "Invalid group ID"
       });
     }
-  },
+
+    const amount = parseFloat(budget_amount);
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: 0,
+        message: "Budget amount must be a positive number"
+      });
+    }
+
+    // Check if budget exists
+    const existing = await groupBudgetService.getBudgetByGroupId(groupId);
+    if (!existing) {
+      return res.status(404).json({
+        success: 0,
+        message: "No budget found for this group"
+      });
+    }
+
+    const result = await groupBudgetService.updateBudget({
+      groupId,
+      budgetAmount: amount,
+      budgetName: budget_name || existing.budget_name
+    });
+
+    return res.json({
+      success: 1,
+      message: "Budget updated successfully",
+      data: result
+    });
+  } catch (err) {
+    console.error("Error updating budget:", err);
+    return res.status(500).json({
+      success: 0,
+      message: "Failed to update budget"
+    });
+  }
+},
 
   getBudget: async (req, res) => {
     try {
       const groupId = parseInt(req.params.groupId, 10);
-
+      
       if (isNaN(groupId)) {
         return res.status(400).json({
           success: 0,
@@ -113,23 +113,23 @@ module.exports = {
       }
 
       const budget = await groupBudgetService.getBudgetByGroupId(groupId);
-
+      
       if (!budget) {
         return res.json({
           success: 1,
-          data: { budget_amount: 0 } // Return default if no budget exists
+          data: null
         });
       }
 
       return res.json({
         success: 1,
-        data: budget || { groupId, budget_amount: 0 }
+        data: budget
       });
     } catch (err) {
-      console.error("Error fetching group budget:", err);
+      console.error("Error fetching budget:", err);
       return res.status(500).json({
         success: 0,
-        message: "Database error"
+        message: "Failed to fetch budget"
       });
     }
   },
