@@ -96,8 +96,8 @@
               <div class="budget-display">
               <div class="budget-header">
                 <h3>Allotted Budget</h3>
-                <button v-if="!hasBudget" @click="showAddBudgetForm" class="btn-add">Add</button>
-                <button v-else @click="showEditBudgetForm" class="btn-edit">Edit</button>
+                <button v-if="!hasBudget && isAdmin"  @click="showAddBudgetForm" class="btn-add">Add</button>
+                <button v-else-if="hasBudget && isAdmin"  class="btn-edit">Edit</button>
               </div>
 
 
@@ -763,15 +763,25 @@ export default {
   },
   
   showAddBudgetForm() {
+    if (!this.isAdmin) {
+      this.showError('Only group admins can add budgets');
+      return;
+    }
     this.isAddingBudget = true;
     this.budgetAmountInput = String(this.budgetAmountValue);
     this.budgetAmountInput = '';
   },
+
   showEditBudgetForm() {
+    if (!this.isAdmin) {
+      this.showError('Only group admins can edit budgets');
+      return;
+    }
     this.isEditingBudget = true;
     this.budgetAmountInput = String(this.budgetAmountValue);
     this.budgetAmountInput = this.budgetAmountValue;
   },
+
   cancelBudgetForm() {
     this.isAddingBudget = false;
     this.isEditingBudget = false;
@@ -779,6 +789,11 @@ export default {
 
   async submitAddBudget() {
   const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
+
+  if (!this.isAdmin) {
+      this.showError('Only group admins can add budgets');
+      return;
+    }
 
   if (isNaN(amount) || amount <= 0) {
     this.showError('Please enter a valid budget amount');
@@ -880,6 +895,11 @@ async updateBudget() {
     const user = JSON.parse(localStorage.getItem('user'));
     const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
 
+    if (!this.isAdmin) {
+      this.showError('Only group admins can edit budgets');
+      return;
+    }
+    
     if (isNaN(amount) || amount <= 0) {
       this.showError('Please enter a valid budget amount');
       return;
