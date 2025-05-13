@@ -2,6 +2,14 @@ const groupBudgetService = require('../grp_expenses/group-budget.service');
 
 module.exports = {
   addBudget: async (req, res) => {
+    const isAdmin = await checkIfAdmin(req.user.id, req.params.groupId);
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: 0,
+        message: "Only group admins can add budgets"
+      });
+    }
+
     try {
       const groupId = parseInt(req.params.groupId, 10);
       const { budget_amount, budget_name } = req.body;
@@ -53,6 +61,14 @@ module.exports = {
 },
 
 updateBudget: async (req, res) => {
+  const isAdmin = await checkIfAdmin(req.user.id, req.params.groupId);
+  if (!isAdmin) {
+    return res.status(403).json({
+      success: 0,
+      message: "Only group admins can update budgets"
+    });
+  }
+  
   try {
     const groupId = parseInt(req.params.groupId, 10);
     const { budget_amount, budget_name } = req.body;
