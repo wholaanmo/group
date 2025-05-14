@@ -2,11 +2,20 @@ const express = require('express');
 const router = express.Router();
 const groupBudgetController = require('../grp_expenses/group-budget.controller');
 const { checkToken } = require('../../auth/token_validation');
+const groupAuth = require('../../auth/groupAuth');
 
+router.use(checkToken);
+// Budget routes
+router.route('/groups/:groupId/budget')
+  .get(groupAuth('member'), groupBudgetController.getBudget) // Get budget
+  .post(groupAuth('admin'), groupBudgetController.addBudget) // Add budget
+  .put(groupAuth('admin'), groupBudgetController.updateBudget) // Update budget
+  
 
-router.post('/groups/:groupId/budget', checkToken, groupBudgetController.addBudget);
-router.get('/groups/:groupId/budget', checkToken, groupBudgetController.getBudget);
-router.put('/groups/:groupId/budget/', checkToken, groupBudgetController.updateBudget);
-//router.get('/groups/:groupId/budgets', checkToken, groupBudgetController.getBudgetsByGroup);
+router.get('/groups/:groupId/budgets', 
+  checkToken, 
+  groupAuth('member'), 
+  groupBudgetController.getBudgetsByGroup
+);
 
 module.exports = router;
