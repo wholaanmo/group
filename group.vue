@@ -292,42 +292,54 @@
 
         <!-- Members Tab -->
         <div v-if="activeTab === 'members'" class="members-tab">
-          <div class="members-list">
-            <div v-for="member in members" :key="member.id" class="member-item">
-              <div class="member-info">
-                <span class="member-name">{{ member.username }}</span>
-                <span class="member-email">{{ member.email }}</span>
-              </div>
-              <div class="member-role">
-                <span :class="['role-badge', member.role]">{{ member.role }}</span>
-                <button 
-                  v-if="isAdmin && member.role !== 'admin'"
-                  @click="confirmRemoveMember(member)"
-                  class="remove-button"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="isAdmin" class="invite-section">
-            <h4><i class="fas fa-user-plus"></i> Invite a Member</h4>
-            <div class="invite-form">
-              <input 
-                v-model="inviteEmail" 
-                type="email" 
-                placeholder="Enter email address"
-                class="email-input"
-              >
-              <button @click="sendInvite" class="invite-button">
-                Send Invite
-              </button>
-            </div>
-            <p v-if="inviteError" class="error-message">{{ inviteError }}</p>
-            <p v-if="inviteSuccess" class="success-message">{{ inviteSuccess }}</p>
-          </div>
+  <div v-if="promoteSuccess" class="promote-success-message">
+    <i class="fas fa-check-circle"></i>
+    {{ promoteSuccess }}
+    <button @click="promoteSuccess = ''" class="close-message">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <div class="members-list">
+    <div v-for="member in members" :key="member.id" class="member-item">
+      <div class="member-info">
+        <span class="member-name">{{ member.username }}</span>
+        <span class="member-email">{{ member.email }}</span>
+      </div>
+      <div class="member-role">
+        <span :class="['role-badge', member.role]">
+          {{ member.role }}
+          <i v-if="member.role === 'admin'" class="fas fa-crown"></i>
+        </span>
+        <div class="member-actions" v-if="isAdmin && member.role !== 'admin'">
+          <button @click="promoteToAdmin(member)" class="promote-button">
+            Promote to Admin
+          </button>
+          <button @click="confirmRemoveMember(member)" class="remove-button">
+            Remove
+          </button>
         </div>
+      </div>
+    </div>
+  </div>
+  
+  <div v-if="!isAdmin" class="leave-group-section">
+    <h4><i class="fas fa-sign-out-alt"></i> Leave Group</h4>
+    <button @click="leaveGroup" class="leave-group-button">
+      Leave This Group
+    </button>
+    <p class="leave-group-warning">
+      Warning: This action cannot be undone. You'll need to be invited again to rejoin.
+    </p>
+  </div>
+  
+  <div v-else class="admin-leave-notice">
+    <h4><i class="fas fa-info-circle"></i> Admin Notice</h4>
+    <p>
+      As an admin, you cannot leave this group. Please transfer admin rights to another member first.
+    </p>
+  </div>
+</div>
 
         <!-- Settings Tab (Admin Only) -->
         <div v-if="activeTab === 'settings' && isAdmin" class="settings-tab">
@@ -518,7 +530,6 @@ export default {
       deleteGroupError: '',
       exchangeRate: null,
       lastExchangeRateUpdate: null,
-     // budgetAmountValue: 0,
       remainingBudget: 0,
       budgetProgress: 0,
       budgetName: '',
@@ -527,7 +538,6 @@ export default {
       isAddingBudget: false,
       isEditingBudget: false,
       budgetAmountInput: '',
-     //hasBudget: false,
       budgetSuccessMessage: '',
       budgetHideMessage: false,
       showBudgetExceededAlert: false,
@@ -535,6 +545,7 @@ export default {
       showAddExpenseModal: false,
       showEditExpenseModal: false,
       showConfirmationModal: false,
+      promoteSuccess: '',
       
       // Form data
       newExpense: {
@@ -746,6 +757,58 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
+
+    leaveGroup() {
+  this.confirmationTitle = 'Leave Group';
+  this.confirmationMessage = 'Are you sure you want to leave this group? You will need to be invited again to rejoin.';
+  this.confirmAction = async () => {
+    try {
+      await this.$store.dispatch('group/leaveGroup', this.localGroupId);
+      
+      // Show success message
+      this.showSuccess('You have left the group successfully');
+      
+      // Redirect to group list after leaving
+      setTimeout(() => {
+        this.$router.push('/GC');
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to leave group:', err);
+      this.showError(err.response?.data?.message || 'Failed to leave group');
+    } finally {
+      this.showConfirmationModal = false;
+    }
+  };
+  this.showConfirmationModal = true;
+},
+
+    promoteToAdmin(member) {
+  this.confirmationTitle = 'Promote to Admin';
+  this.confirmationMessage = `Are you sure you want to promote ${member.username} to admin? They will have full control over this group.`;
+  this.confirmAction = async () => {
+    try {
+      await this.$store.dispatch('group/promoteToAdmin', {
+        groupId: this.localGroupId,
+        memberId: member.id
+      });
+
+      this.promoteSuccess = `${member.username} is now an admin!`;
+
+      setTimeout(() => {
+        this.promoteSuccess = '';
+      }, 5000);
+      
+      await this.fetchGroupData();
+      
+    } catch (err) {
+      console.error('Failed to promote member:', err);
+      this.showError(err.response?.data?.message || 'Failed to promote member');
+    } finally {
+      this.showConfirmationModal = false;
+    }
+  };
+  this.showConfirmationModal = true;
+},
 
     showError(message) {
     console.error(message);
@@ -1505,6 +1568,147 @@ async handleUpdateExpense() {
 </script>
 
 <style scoped>
+.leave-group-section,
+.admin-leave-notice {
+  margin: 20px auto 0px auto;
+  padding: 0px 100px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  max-width: 400px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.leave-group-section h4,
+.admin-leave-notice h4 {
+  color: #343a40;
+  margin-bottom: 12px;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+}
+
+.leave-group-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  margin: 0 auto;
+}
+
+.leave-group-button:hover {
+  background-color: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.leave-group-warning {
+  margin-top: 8px;
+  color: #6c757d;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 320px;
+}
+
+.admin-leave-notice p {
+  color: #6c757d;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 0;
+  text-align: center;
+  max-width: 320px;
+}
+
+.fa-sign-out-alt,
+.fa-info-circle {
+  margin-right: 8px;
+  font-size: 1.1rem;
+}
+
+.fa-sign-out-alt {
+  color: #dc3545;
+}
+
+.fa-info-circle {
+  color: #17a2b8;
+}
+
+.promote-success-message {
+  background-color: #4CAF50;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.promote-success-message i.fa-check-circle {
+  margin-right: 10px;
+}
+
+.close-message {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 15px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.role-badge.admin {
+  background-color: #ffeb3b;
+  color: #000;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fa-crown {
+  color: #ff9800;
+}
+
+.member-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.promote-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.promote-button:hover {
+  background-color: #45a049;
+}
+
 .group-header-decoration {
   height: 4px;
   background: linear-gradient(90deg, #2a4935 0%, #4a8c61 100%);
