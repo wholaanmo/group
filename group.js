@@ -94,40 +94,29 @@ export default {
         commit('SET_LOADING', true);
         commit('SET_ERROR', null);
         
-    try {
-      if (!groupId) {
-        throw new Error('Missing group ID');
-      }
-  
-    // Fetch group info
-    const [groupRes, membersRes] = await Promise.all([
-      axios.get(`/api/grp_expenses/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-        },
-        timeout: 30000
-      }),
-      axios.get(`/api/grp_expenses/${groupId}/members`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-        }
-      })
-    ]);
-    
-    if (!groupRes.data?.success || !membersRes.data?.success) {
-      throw new Error('Failed to fetch group data');
-    }
-
-    commit('SET_GROUP', groupRes.data.data);
-    commit('SET_MEMBERS', membersRes.data.data);
-
-    // Check admin status
-    const user = JSON.parse(localStorage.getItem('user'));
-    const currentMember = membersRes.data.data.find(m => m.id === user?.id);
-    commit('SET_ADMIN', currentMember?.role === 'admin');
-    
-    return groupRes.data.data;
-  } catch (err) {
+        try {
+          const [groupRes, membersRes] = await Promise.all([
+            axios.get(`/api/grp_expenses/${groupId}`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('jsontoken')}` }
+            }),
+            axios.get(`/api/grp_expenses/${groupId}/members`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('jsontoken')}` }
+            })
+          ]);
+      
+          commit('SET_GROUP', groupRes.data.data);
+          commit('SET_MEMBERS', membersRes.data.data);
+      
+          // Enhanced admin check
+          const user = JSON.parse(localStorage.getItem('user'));
+          const currentMember = membersRes.data.data.find(m => m.id === user?.id);
+          const isAdmin = currentMember?.role === 'admin';
+          
+          console.log('Setting admin status:', isAdmin); // Add logging
+          commit('SET_ADMIN', isAdmin);
+          
+          return groupRes.data.data;
+        } catch (err) {
     if (err.code === 'ECONNABORTED') {
       commit('SET_ERROR', 'Request timeout. Please try again.');
     } else {
@@ -146,27 +135,28 @@ async fetchGroupBudget({ commit }, groupId) {
       { headers: { Authorization: `Bearer ${localStorage.getItem('jsontoken')}` }
   });
     
-    commit('SET_GROUP_BUDGET', res.data.success ? res.data.data : null);
-    return res.data.data;
-  } catch (err) {
-    console.error('Failed to fetch budget:', err);
-    throw err;
+  commit('SET_GROUP_BUDGET', res.data.data || null);
+  return res.data.data;
+} catch (err) {
+  if (err.response?.status === 404) {
+    // No budget exists yet - set to null
+    commit('SET_GROUP_BUDGET', null);
+    return null;
   }
+  console.error('Failed to fetch budget:', err);
+  throw err;
+}
 },
 
 
-async addGroupBudget({ commit, state }, { groupId, budgetAmount, budgetName }) {
-  if (!state.isAdmin) {
-    throw new Error('Unauthorized: Only admins can add budgets');
-  }
-
+    
+async addGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
   try {
     const res = await axios.post(
-      `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
+      `/api/grp_expenses/groups/${groupId}/budget`,
       { 
         budget_amount: budgetAmount,
-        budget_name: budgetName || 'Group Budget',
-        user_id: userId // Now using the userId parameter
+        budget_name: budgetName 
       },
       { 
         headers: { 
@@ -178,21 +168,21 @@ async addGroupBudget({ commit, state }, { groupId, budgetAmount, budgetName }) {
     commit('SET_GROUP_BUDGET', res.data.data);
     return res.data;
   } catch (err) {
-    console.error('Failed to add budget:', err);
+    console.error('Failed to add budget:', {
+      error: err,
+      response: err.response?.data
+    });
     throw err;
   }
 },
 
-async updateGroupBudget({ commit, state }, { groupId, budgetAmount, budgetName }) {
-  if (!state.isAdmin) {
-    throw new Error('Unauthorized: Only admins can update budgets');
-  }
+async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
   try {
     const res = await axios.put(
-      `/api/grp_expenses/groups/${groupId}/budget`, // Fixed: using parameter instead of this.groupId
+      `/api/grp_expenses/groups/${groupId}/budget`,
       { 
         budget_amount: budgetAmount, 
-        budget_name: budgetName || 'Group Budget' 
+        budget_name: budgetName || 'Group Budget'
       },
       {
         headers: {
