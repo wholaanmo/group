@@ -1,6 +1,23 @@
 const pool = require('../../config/database');  // Assuming this is the correct path to your DB connection
 
 module.exports = {
+  isGroupAdmin: async (userId, groupId) => {
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      const [rows] = await connection.query(
+        'SELECT role FROM group_members WHERE user_id = ? AND group_id = ?',
+        [userId, groupId]
+      );
+      return rows.length > 0 && rows[0].role === 'admin';
+    } catch (err) {
+      console.error('Check admin error:', err);
+      throw err;
+    } finally {
+      if (connection) connection.release();
+    }
+  },
+
   addBudget: async (data) => {
     try {
       // Check if budget already exists for this group
@@ -19,7 +36,7 @@ module.exports = {
          VALUES (?, ?, ?, ?, NOW())`,
         [
           data.groupId, 
-          data.userId || null, // Accept NULL user_id
+          data.userId, 
           data.budgetAmount, 
           data.budgetName || 'Group Budget'
         ]
@@ -32,33 +49,38 @@ module.exports = {
   },
 
   updateBudget: async (data) => {
+    let connection;
     try {
-      await pool.query(
+      connection = await pool.getConnection();
+      
+      await connection.query(
         `UPDATE group_budgets 
          SET budget_amount = ?, budget_name = ?, updated_at = NOW()
          WHERE group_id = ?`,
         [data.budgetAmount, data.budgetName || 'Group Budget', data.groupId]
       );
       
-      // Return the updated budget data
-      const [updated] = await pool.query(
+      const [updated] = await connection.query(
         `SELECT * FROM group_budgets WHERE group_id = ?`,
         [data.groupId]
       );
       return updated[0];
     } catch (err) {
       throw err;
+    } finally {
+      if (connection) connection.release();
     }
   },
-
+  
   getBudgetByGroupId: async (groupId) => {
     try {
-      const [results] = await pool.query(
-        `SELECT * FROM group_budgets WHERE group_id = ?`,
+      const [result] = await pool.query(
+        'SELECT * FROM group_budgets WHERE group_id = ?',
         [groupId]
       );
-      return results[0] || null;
+      return result[0] || null;
     } catch (err) {
+      console.error('Error fetching group budget:', err);
       throw err;
     }
   },
