@@ -50,10 +50,15 @@
                                 </label>
                             </div>
 
-                            <p v-if="serverMessage" class="error-message">{{ serverMessage }}</p>
+                            <p v-if="serverMessage" class="success-message" :class="{ 'success-message': isSuccess }">
+                                    {{ serverMessage }}
+                            </p>
 
                             <button type="submit" class="login-btn">SIGN UP</button>
                             <router-link to="/login" class="login-btn1">SIGN IN</router-link>
+                            <router-link to="/about" class="about-link">💰
+                                        About Money Log System
+                            </router-link>
                         </div>
                     </form>    
                 </div>
@@ -273,6 +278,33 @@ export default {
 </script>
     
 <style scoped>
+.server-message {
+    color: red; 
+}
+
+.server-message.success {
+    color: black;
+}
+.about-link {
+    color: #2e7d32;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 8px 12px; /* More balanced padding */
+    margin-top: 15px; /* Added top margin */
+    margin-bottom: 5px; /* Reduced bottom margin */
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    display: inline-flex; /* Changed to inline-flex */
+    align-items: center;
+    background-color: rgba(200, 230, 201, 0.2); /* Subtle background */
+}
+
+.about-link:hover {
+    background-color: rgba(200, 230, 201, 0.4);
+    text-decoration: underline;
+}
+
 .password-strength-meter {
     height: 5px;
     background-color: #e0e0e0;
@@ -298,7 +330,8 @@ export default {
 
 .password-feedback {
     font-size: 0.85rem;
-    margin-bottom: 15px;
+    margin-bottom: 0px;
+    margin-top: -10px;
 }
 .password-feedback.weak {
     color: #ff4444;
@@ -531,7 +564,7 @@ export default {
         display: flex;
         justify-content: space-between;
         flex-direction: row;
-        padding: 30px;
+        padding: 15px;
         gap: 20px;
         box-sizing: border-box;
     }
