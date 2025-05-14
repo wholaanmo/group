@@ -45,6 +45,16 @@ export default {
       SET_ADMIN(state, isAdmin) {
         state.isAdmin = isAdmin;
       },
+      PROMOTE_MEMBER(state, { memberId, updatedData }) {
+        const index = state.members.findIndex(m => m.id === memberId);
+        if (index !== -1) {
+          // Update the member with the new data
+          state.members[index] = {
+            ...state.members[index],
+            ...updatedData
+          };
+        }
+      },
       ADD_EXPENSE(state, expense) {
         console.log('Current expenses:', state.expenses);
         console.log('Type of expenses:', typeof state.expenses);
@@ -105,7 +115,13 @@ export default {
           ]);
       
           commit('SET_GROUP', groupRes.data.data);
-          commit('SET_MEMBERS', membersRes.data.data);
+          const members = membersRes.data.data.map(member => ({
+            id: member.id,
+            username: member.username,
+            email: member.email,
+            role: member.role
+          }));
+          commit('SET_MEMBERS', members);
       
           // Enhanced admin check
           const user = JSON.parse(localStorage.getItem('user'));
@@ -364,6 +380,57 @@ async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
           throw new Error(res.data.message || 'Update failed');
         } catch (err) {
           console.error('Update group name error:', err);
+          throw err;
+        }
+      },
+      
+      async promoteToAdmin({ commit }, { groupId, memberId }) {
+        try {
+          const response = await axios.put(
+            `/api/grp_expenses/groups/${groupId}/members/${memberId}/promote`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+              }
+            }
+          );
+      
+          if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to promote member');
+          }
+      
+          // Commit both the promotion and the updated member data
+          commit('PROMOTE_MEMBER', {
+            memberId: memberId,
+            updatedData: { role: 'admin' }
+          });
+          
+          return response.data;
+        } catch (err) {
+          console.error('Promote member error:', err);
+          throw err;
+        }
+      },
+
+      async leaveGroup({ commit }, groupId) {
+        try {
+          const response = await axios.delete(
+            `/api/grp_expenses/groups/${groupId}/leave`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+              }
+            }
+          );
+      
+          if (!response.data.success) {
+            throw new Error(response.data.message || 'Failed to leave group');
+          }
+      
+          return response.data;
+        } catch (err) {
+          console.error('Leave group error:', err);
           throw err;
         }
       },
