@@ -3,6 +3,7 @@ const router = express.Router();
 const groupBudgetController = require('../grp_expenses/group-budget.controller');
 const { checkToken } = require('../../auth/token_validation');
 const groupAuth = require('../../auth/groupAuth');
+const pool = require('../../config/database');
 
 router.use(checkToken);
 // Budget routes
@@ -18,4 +19,115 @@ router.get('/groups/:groupId/budgets',
   groupBudgetController.getBudgetsByGroup
 );
 
+router.put('/groups/:groupId/members/:memberId/promote',
+  checkToken, 
+  groupAuth('admin'), 
+  async (req, res) => {
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      const { groupId, memberId } = req.params;
+      
+      // 1. First verify the member exists and is not already an admin
+      const [memberCheck] = await connection.query(
+        'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, memberId]
+      );
+      
+      if (memberCheck.length === 0) {
+        return res.status(404).json({
+          success: 0,
+          message: "Member not found in this group"
+        });
+      }
+      
+      if (memberCheck[0].role === 'admin') {
+        return res.status(400).json({
+          success: 0,
+          message: "Member is already an admin"
+        });
+      }
+      
+      await connection.query(
+        `UPDATE group_members 
+         SET role = 'admin' 
+         WHERE group_id = ? AND user_id = ?`,
+        [groupId, memberId]
+      );
+
+      const [updatedMember] = await connection.query(
+        `SELECT user_id as id, username, email, role 
+         FROM group_members 
+         JOIN users ON group_members.user_id = users.id
+         WHERE group_id = ? AND user_id = ?`,
+        [groupId, memberId]
+      );
+      
+      return res.json({
+        success: 1,
+        message: "Member promoted to admin successfully",
+        data: updatedMember[0]
+      });
+    } catch (err) {
+      console.error('Promote member error:', err);
+      return res.status(500).json({
+        success: 0,
+        message: "Failed to promote member"
+      });
+    } finally {
+      if (connection) connection.release();
+    }
+  }
+);
+
+  router.delete('/groups/:groupId/leave', 
+  checkToken,
+  groupAuth('member'),
+  async (req, res) => {
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      const userId = req.user.userId;
+      const groupId = req.params.groupId;
+
+      // Check if user is the last admin
+      const [admins] = await connection.query(
+        'SELECT user_id FROM group_members WHERE group_id = ? AND role = "admin"',
+        [groupId]
+      );
+
+      const [userRole] = await connection.query(
+        'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, userId]
+      );
+
+      // Prevent last admin from leaving without transferring admin rights
+      if (userRole[0].role === 'admin' && admins.length === 1) {
+        return res.status(400).json({
+          success: 0,
+          message: "You are the last admin. Please assign another admin before leaving."
+        });
+      }
+
+      // Remove member from group
+      await connection.query(
+        'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, userId]
+      );
+
+      return res.json({
+        success: 1,
+        message: "You have left the group successfully"
+      });
+    } catch (err) {
+      console.error('Leave group error:', err);
+      return res.status(500).json({
+        success: 0,
+        message: "Failed to leave group"
+      });
+    } finally {
+      if (connection) connection.release();
+    }
+  }
+);
 module.exports = router;
