@@ -97,7 +97,7 @@
               <div class="budget-header">
                 <h3>Allotted Budget</h3>
                 <button v-if="!hasBudget && isAdmin"  @click="showAddBudgetForm" class="btn-add">Add</button>
-                <button v-else-if="hasBudget && isAdmin"  class="btn-edit">Edit</button>
+                <button v-else-if="hasBudget && isAdmin" @click="showEditBudgetForm" class="btn-edit">Edit</button>
               </div>
 
 
@@ -564,8 +564,8 @@ export default {
     }),
 
     hasBudget() {
-    return this.groupBudget !== null && this.groupBudget.budget_amount !== undefined;
-  },
+  return this.groupBudget && this.groupBudget.budget_amount !== undefined && this.groupBudget.budget_amount !== null;
+},
 
   formattedBudgetAmount() {
     return this.formatPHP(this.budgetAmountValue);
@@ -633,16 +633,22 @@ export default {
   },
 
   watch: {
-    'groupId': {
-      immediate: true,
-      async handler(newGroupId) {
-        if (newGroupId && newGroupId !== this.localGroupId) {
-          this.localGroupId = newGroupId;
-          await this.initializeGroupData();
-          this.originalName = this.group.group_name || '';
-        }
+  'groupId': {
+    immediate: true,
+    async handler(newGroupId) {
+      if (newGroupId && newGroupId !== this.localGroupId) {
+        this.localGroupId = newGroupId;
+        await this.initializeGroupData();
+        this.originalName = this.group.group_name || '';
       }
-    },
+    }
+  },
+  'groupBudget': {
+    deep: true,
+    handler() {
+      this.calculateRemaining();
+    }
+  },
 
     budgetSuccessMessage(newVal) {
     if (newVal) {
@@ -742,6 +748,7 @@ export default {
     showError(message) {
     console.error(message);
     },
+
   showSuccess(message) {
     if (this._isMounted) { // Check if component is still mounted
       this.budgetSuccessMessage = message;
@@ -761,72 +768,66 @@ export default {
   formatPHP(amount) {
     return `₱${parseFloat(amount || 0).toFixed(2)}`;
   },
-  
-  showAddBudgetForm() {
-    if (!this.isAdmin) {
-      this.showError('Only group admins can add budgets');
-      return;
-    }
-    this.isAddingBudget = true;
-    this.budgetAmountInput = String(this.budgetAmountValue);
-    this.budgetAmountInput = '';
-  },
 
-  showEditBudgetForm() {
-    if (!this.isAdmin) {
-      this.showError('Only group admins can edit budgets');
-      return;
-    }
-    this.isEditingBudget = true;
-    this.budgetAmountInput = String(this.budgetAmountValue);
-    this.budgetAmountInput = this.budgetAmountValue;
-  },
+ showEditBudgetForm() {
+  if (!this.isAdmin) {
+    this.showError('Only group admins can edit budgets');
+    return;
+  }
+  this.isEditingBudget = true;
+  this.budgetAmountInput = this.groupBudget.budget_amount.toString();
+  this.budgetName = this.groupBudget.budget_name || '';
+},
 
   cancelBudgetForm() {
     this.isAddingBudget = false;
     this.isEditingBudget = false;
   },
-
-  async submitAddBudget() {
-  const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
-
+  
+  async showAddBudgetForm() {
+    try {
+    await this.fetchGroupData();
+    console.log('Current admin status:', this.isAdmin); 
   if (!this.isAdmin) {
-      this.showError('Only group admins can add budgets');
-      return;
-    }
+    this.showError('Only group admins can add budgets');
+    return;
+  }
+  this.isAddingBudget = true;
+  this.budgetAmountInput = '';
+} catch (err) {
+    console.error('Failed to verify admin status:', err);
+    this.showError('Failed to verify permissions');
+  }
+},
 
-  if (isNaN(amount) || amount <= 0) {
+async submitAddBudget() {
+  try {
+    this.isBudgetLoading = true;
+
+    const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(amount) || amount <= 0) {
     this.showError('Please enter a valid budget amount');
     return;
   }
 
-  try {
-    this.isBudgetLoading = true;
-
+    
     await this.$store.dispatch('group/addGroupBudget', {
       groupId: this.localGroupId,
       budgetAmount: amount,
-      budgetName: this.budgetName || 'Group Budget'
+      budgetName: this.budgetName || 'Group Budget',
     });
 
-    // Reset form and update UI
+    await this.fetchBudgetData();
+
     this.isAddingBudget = false;
     this.budgetAmountInput = '';
     this.budgetName = '';
-    
-    // Show success message
-    this.$nextTick(() => {
-      this.showSuccess('Budget added successfully!');
-    });
-    
-    // Recalculate remaining budget
-    this.calculateRemaining();
+    this.showSuccess('Budget added successfully!');
+    //this.calculateRemaining();
     
   } catch (err) {
-    console.error('Failed to add budget:', {
-      error: err,
-      response: err.response?.data
-    });
+    console.error('Failed to add budget:', err);
     this.showError(err.response?.data?.message || 'Failed to add budget. Please try again.');
   } finally {
     this.isBudgetLoading = false;
@@ -834,72 +835,73 @@ export default {
 },
 
   async fetchGroupBudget() {
-    try {
-      this.isBudgetLoading = true;
-      const res = await this.$axios.get(
-        `/api/grp_expenses/groups/${this.groupId}/budget`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-          }
+  try {
+    this.isBudgetLoading = true;
+    const res = await this.$axios.get(
+      `/api/grp_expenses/groups/${this.groupId}/budget`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
         }
-      );
-      
-      if (res.data?.success) {
-        this.budgetAmountValue = parseFloat(res.data.data.budget_amount);
+      }
+    );
+    
+    if (res.data?.success) {
+      if (res.data.data) {
+        // Budget exists
         this.budgetName = res.data.data.budget_name || '';
-        this.hasBudget = true;
         this.calculateRemaining();
       } else {
+        // No budget exists yet
         this.hasBudget = false;
       }
-    } catch (err) {
-      console.error("Failed to fetch budget:", err);
-      this.hasBudget = false;
-    } finally {
-      this.isBudgetLoading = false;
     }
-  },
+  } catch (err) {
+    if (err.response?.status === 404) {
+      // No budget exists
+      this.hasBudget = false;
+    } else {
+      console.error("Failed to fetch budget:", err);
+      this.showError("Failed to load budget information");
+    }
+  } finally {
+    this.isBudgetLoading = false;
+  }
+},
 
-  async fetchBudgetData() {
+async fetchBudgetData() {
   this.isBudgetLoading = true;
   try {
-    const response = await this.$axios.get(`/api/grp_expenses/groups/${this.groupId}/budget`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+    const response = await this.$axios.get(
+      `/api/grp_expenses/groups/${this.localGroupId}/budget`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
       }
-    });
-    
-    if (response.data.success) {
-      const budgetData = response.data.data;
-      if (budgetData && budgetData.budget_amount != null) {
-        this.budgetAmountValue = parseFloat(budgetData.budget_amount);
-        this.budgetName = budgetData.budget_name || '';
-        this.hasBudget = true;
-        this.calculateRemaining();
-      } else {
-        this.hasBudget = false;
-        this.budgetAmountValue = 0;
-      }
+    );
+
+    if (response.data?.success) {
+      this.$store.commit('group/SET_GROUP_BUDGET', response.data.data);
+      this.calculateRemaining();
+    } else {
+      this.$store.commit('group/SET_GROUP_BUDGET', null);
     }
   } catch (error) {
-    console.error('Failed to fetch budget:', error);
-    this.hasBudget = false;
-    this.budgetAmountValue = 0;
+    if (error.response?.status === 404) {
+      this.$store.commit('group/SET_GROUP_BUDGET', null);
+    } else {
+      console.error('Failed to fetch budget:', error);
+      this.showError("Failed to load budget information");
+    }
   } finally {
     this.isBudgetLoading = false;
   }
 },
 
 async updateBudget() {
-    const user = JSON.parse(localStorage.getItem('user'));
     const amount = parseFloat(this.budgetAmountInput.replace(/[^0-9.]/g, ''));
 
-    if (!this.isAdmin) {
-      this.showError('Only group admins can edit budgets');
-      return;
-    }
-    
     if (isNaN(amount) || amount <= 0) {
       this.showError('Please enter a valid budget amount');
       return;
@@ -908,21 +910,12 @@ async updateBudget() {
     try {
       this.isBudgetLoading = true;
       
-      const res = await this.$axios.put(
-        `/api/grp_expenses/groups/${this.localGroupId}/budget`,
-        {
-          budget_amount: amount,
-          budget_name: this.budgetName || 'Group Budget',
-          user_id: user.id
-        },
-        { 
-          headers: { 
-            Authorization: `Bearer ${localStorage.getItem('jsontoken')}` 
-          }
-        }
-      );
-      
-      this.$store.commit('group/SET_GROUP_BUDGET', res.data.data);
+      await this.$store.dispatch('group/updateGroupBudget', {
+      groupId: this.localGroupId,
+      budgetAmount: amount,
+      budgetName: this.budgetName || 'Group Budget'
+    });
+
       this.calculateRemaining();
       this.isEditingBudget = false;
       this.showSuccess('Budget updated successfully!');
