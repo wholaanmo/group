@@ -103,6 +103,7 @@
 
               <div v-if="!isBudgetLoading">
                 <div v-if="hasBudget" class="budget-details">
+                  <div class="budget">
                   <div class="budget-name">
                     <span>Budget Name:</span>
                     <strong>{{ groupBudget?.budget_name || 'General Budget' }}</strong>
@@ -113,12 +114,20 @@
                     <span>Budget Amount:</span>
                     <strong>{{ formatPHP(groupBudget?.budget_amount || 0) }}</strong>
                   </div>
+                </div>
                   
+                <div class="expenses-summary1">
+                <div class="total-expenses">
+        <span>Total Expenses:</span>
+        <strong>{{ formatPHP(totalAmount) }}</strong>
+      </div>
+
                   <div class="remaining-budget">
-                    <span>Remaining:</span>
+                    <span>Remaining Budget:</span>
                     <strong :class="{ 'text-danger': remainingBudget < 0 }">
                       {{ formatPHP(remainingBudget) }}
                     </strong>
+                  </div>
                   </div>
     
                   <div class="budget-progress">
@@ -198,11 +207,6 @@
         <!-- Expenses Tab -->
         <div v-if="activeTab === 'expenses'" class="expenses-tab">
           <div class="expense-controls">
-            <div class="month-selector">
-              <button @click="prevMonth">&lt;</button>
-              <span>{{ currentMonthYear }}</span>
-              <button @click="nextMonth">&gt;</button>
-            </div>
             <button @click="showAddExpenseModal = true" class="add-expense-button">
               <i class="fas fa-plus"></i> Add Expense
             </button>
@@ -228,7 +232,7 @@
                   
       <div v-else class="expenses-container">
         <div class="expenses-section"> 
-          <h3>Your Expenses</h3> 
+          <h3><i class="fas fa-coins"></i> <span>YOUR EXPENSES</span></h3> 
           <div class="expenses-table"> 
             <table>
               <thead>
@@ -273,13 +277,10 @@
         </div>
         <div class="total-summary">
               <div class="total-amount-card">
-                <div class="total-label">Total Expenses</div>
+                <div class="total-label">TOTAL EXPENSES</div>
                 <div class="amount-display">
                   <span class="currency php">{{ formatPHP(totalAmount) }}</span>
                   <span class="currency usd">≈ {{ formatUsd(convertPhpToUsd(totalAmount)) }}</span>
-                </div>
-                <div class="exchange-rate-display">
-                  <i class="fas fa-sync-alt"></i> 1 PHP = {{ (exchangeRate || 0.018045).toFixed(6) }} USD
                 </div>
               </div>
             </div>
@@ -311,7 +312,7 @@
           </div>
           
           <div v-if="isAdmin" class="invite-section">
-            <h3>Invite New Member</h3>
+            <h4><i class="fas fa-user-plus"></i> Invite a Member</h4>
             <div class="invite-form">
               <input 
                 v-model="inviteEmail" 
@@ -331,9 +332,10 @@
         <!-- Settings Tab (Admin Only) -->
         <div v-if="activeTab === 'settings' && isAdmin" class="settings-tab">
           <div class="settings-section">
-            <h3>Group Settings</h3>
+            <h3 class="section-title"><i class="fas fa-cog"></i> Group Settings</h3>
+           
             <div class="setting-item">
-              <label>Group Name</label>
+              <label class="setting-label">Group Name</label>
           <div class="input-group">
             <input 
               v-model="group.group_name" 
@@ -357,9 +359,9 @@
         </div>
           
           <div class="danger-zone">
-            <h3>Danger Zone</h3>
+            <h3 class="danger-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
             <div class="danger-item">
-              <p>Delete this group permanently  (including all expenses and members) </p>
+              <p class="danger-text">Delete this group permanently  (including all expenses and members) </p>
               <button 
                 @click="confirmDeleteGroup" 
                 class="delete-button"
@@ -1291,7 +1293,7 @@ async handleUpdateExpense() {
     });
     this.closeModal();
     await this.loadExpenses();
-    this.updateTotalAmount(); // <-- Add this
+    this.updateTotalAmount(); 
   } catch (err) {
     console.error('Error updating expense:', err);
     this.$notify({
@@ -1300,8 +1302,7 @@ async handleUpdateExpense() {
       type: 'error'
     });
   }
-}
-,
+},
     
     confirmDeleteExpense(expense) {
       this.confirmationTitle = 'Delete Expense';
@@ -1629,6 +1630,20 @@ async handleUpdateExpense() {
   border-radius: 10px;
 }
 
+.budget {
+  background-color: #ffffff;           
+  border: 2px solid #6A9C89;           
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: #388e3c;                      
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  font-weight: 650;
+  font-size: 18px;
+}
+
 .budget-details {
   color: #1d4d2b;
   display: flex;
@@ -1636,43 +1651,73 @@ async handleUpdateExpense() {
   gap: 15px;
 }
 
-.budget-name {
-    display: flex;
-    justify-content: space-between;
-    font-size: 1rem;
-}
-
-.budget-amount .budget {
-  color: gold;
-}
-
-.budget-amount,
-.expenses-amount,
-.remaining-budget {
+.budget-name,
+.budget-amount {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 1rem;
 }
 
-.remaining-budget .text-danger {
-  color: #f44336;
+.budget-name span,
+.budget-amount span {
+  color: #388e3c;   
 }
 
-.budget-progress {
-  margin-top: 15px;
+.budget-name strong,
+.budget-amount strong {
+  color:  #388e3c;
+  font-weight: bold;
 }
 
+.expenses-summary1 {
+  background-color: #f5f5f5;
+  border: 2px solid #697565;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  width: 88%;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.total-expenses,
+.remaining-budget {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  color: #444;
+}
+
+.total-expenses span,
+.remaining-budget span {
+  color: #444;
+}
+
+.total-expenses strong,
+.remaining-budget strong {
+  font-weight: bold;
+  color: #444;
+}
+
+.remaining-budget strong.text-danger {
+  color: #d32f2f;
+}
 .progress-bar {
-  height: 20px;
+  height: 10px !important;
   background-color: #f0f0f0;
-  border-radius: 10px;
+  border-radius: 70px !important;
   overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%;
-  background-color: #4CAF50;
+  height: 100%; /* Matches progress-bar height */
+  background: linear-gradient(to right, #81c784, #66bb6a); 
   transition: width 0.3s;
+  border-radius: 15px 0 0 15px; /* Optional: makes left edge rounded */
 }
 
 .progress-fill.exceeded {
@@ -1682,7 +1727,8 @@ async handleUpdateExpense() {
 .progress-text {
   color: #2a4935;
   text-align: right;
-  font-size: 0.9rem;
+  font-size: 1rem; /* Slightly bigger */
+  margin-top: 6px;  /* Adds spacing below the bar */
 }
 
 .budget-form-modal {
@@ -1782,14 +1828,17 @@ h2 {
   min-width: 68%;
   width: 100%;
   box-sizing: border-box;
+  margin: 0 auto;
+  max-width: 1200px;
 }
 
 .group-body {
   background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   border: 2px solid #6A9C89;
   padding: 30px;
+  margin-bottom: 20px;
 }
 
 .total-summary {
@@ -1805,8 +1854,8 @@ h2 {
 .total-amount-card {
   background: #d0ebdd;
   border-radius: 10px;
-  height: 100px;
-  padding: 20px;
+  height: 70px;
+  padding: 14px 16px;
   width: 100%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   box-sizing: border-box;
@@ -1814,7 +1863,7 @@ h2 {
 }
 
 .total-label {
-  font-size: 0.9rem;
+  font-size: 1.2rem;
   color: #5a6a7a;
   margin-bottom: 8px;
   margin-top: -7px;
@@ -1844,17 +1893,6 @@ h2 {
   font-size: 1.2rem;
 }
 
-.exchange-rate-display {
-  margin-top: 12px;
-  font-size: 0.8rem;
-  color: #6c757d;
-  display: flex;
-  gap: 5px;
-  justify-content: center; /* centers items horizontally */
-  align-items: center;     /* centers items vertically (optional) */
-  text-align: center; 
-}
-
 .retry-btn {
   background-color: #1976d2;
   color: white;
@@ -1871,6 +1909,22 @@ h2 {
 
 .expenses-section {
   overflow-x: auto;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.expenses-section h3 {
+  display: inline-block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #2a4935;
+  background: linear-gradient(90deg, #d0ebdd, #f0f7f3);
+  padding: 12px 300px;
+  border-radius: 12px;
+  animation: fadeSlideIn 0.6s ease-out;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .expenses-table table {
@@ -1895,6 +1949,7 @@ th, td {
   top: 0;
   font-weight: 600;
   padding: 12px 20px; 
+  border-bottom: 2px solid #e0e0e0;
 }
 
 tr {
@@ -1928,6 +1983,7 @@ tr:hover {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 .edit-btn {
@@ -1989,7 +2045,7 @@ tr:hover {
 }
 
 .group-header {
-  margin-bottom: 25px;
+  margin-bottom: 10px;
 }
 
 .header-top-row {
@@ -2018,13 +2074,22 @@ tr:hover {
 .group-code-badge {
   display: flex;
   align-items: center;
-  background: #f0f4f8;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  gap: 8px;
-  background-color: #e8f0ee;
-  color: #2a4935;
+  background: #e8f0ee;
+  padding: 10px 16px; 
+  border-radius: 20px; 
+  font-size: 1.0rem; 
+  gap: 10px; 
+  background-color: #d1f0e6; 
+  color: #2a4935; 
+  font-weight: 500; 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); 
+  transition: all 0.3s ease;
+}
+
+.group-code-badge:hover {
+  background-color: #b9e8d8; 
+  transform: translateY(-2px); 
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
 }
 
 .copy-button {
@@ -2104,6 +2169,10 @@ tr:hover {
 
 .meta-item i {
   color: #6c757d;
+}
+
+.meta-item span {
+  font-size: 1.1rem; 
 }
 
 /* Enhanced Group List Container */
@@ -2296,32 +2365,44 @@ tr:hover {
 .group-tabs {
   display: flex;
   flex-wrap: wrap;
-  border-bottom: 1px solid #ddd;
-  margin-bottom: 20px;
+  border-bottom: 2px solid  #f0f0f0;
+  margin-bottom: 30px;
+  gap: 30px;
 }
 
 .group-tabs button {
-  padding: 10px 20px;
+  padding: 12px 24px;
   background: none;
   border: none;
   cursor: pointer;
   font-size: 1rem;
   position: relative;
+  color: #666;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border-radius: 6px 6px 0 0;
+}
+
+.group-tabs button:hover {
+  background-color: #f5f5f5;
+  color: #2a4935;
 }
 
 .group-tabs button.active {
   color: #2a4935;
-  font-weight: bold;
+  font-weight: 600;
+  background-color: #f0f7f3;
 }
 
 .group-tabs button.active::after {
   content: '';
   position: absolute;
-  bottom: -1px;
+  bottom: -2px;
   left: 0;
   width: 100%;
-  height: 2px;
-  background-color: #1976d2;
+  height: 3px;
+  background-color: #2a4935;
+  border-radius: 3px;
 }
 
 .expense-controls {
@@ -2329,43 +2410,38 @@ tr:hover {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-}
-
-.month-selector {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.month-selector button {
-  background: none;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 5px 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.month-selector button:hover {
-  background-color: #f0f0f0;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .add-expense-button {
   background-color: #2a4935;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 12px 365px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 8px;
   transition: all 0.3s ease;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  margin: 0 auto; /* This centers the button */
+  min-width: 180px;
 }
 
 .add-expense-button:hover {
   background-color: #1e3a27;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(42, 73, 53, 0.3);
+}
+
+.add-expense-button i {
+  font-size: 1.1rem;
 }
 
 .expenses-list {
@@ -2446,10 +2522,16 @@ tr:hover {
   justify-content: space-between;
   align-items: center;
   padding: 15px;
-  background-color: #ecfdf0;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, #ecfdf0, #e6f4ea);
+  border-radius: 10px;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
 }
+
+.member-item:hover {
+  box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
 
 .member-info {
   display: flex;
@@ -2457,12 +2539,14 @@ tr:hover {
 }
 
 .member-name {
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #2a4935;
 }
 
 .member-email {
   font-size: 0.8rem;
-  color: #666;
+  color: #7d8c96;
 }
 
 .member-role {
@@ -2472,19 +2556,22 @@ tr:hover {
 }
 
 .role-badge {
-  padding: 3px 8px;
-  border-radius: 10px;
-  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .role-badge.admin {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: #e0f2e9;
+  color: #1b5e20;
 }
 
 .role-badge.member {
   background-color: #e3f2fd;
-  color: #1976d2;
+  color: #0d47a1;
 }
 
 .remove-button {
@@ -2495,35 +2582,69 @@ tr:hover {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.8rem;
+  transition: background-color 0.3s ease;
+}
+
+.remove-button:hover {
+  background-color: #ffcdd2;
 }
 
 .invite-section {
   margin-top: 30px;
-  padding: 20px;
-  background-color: #f5f5f5;
-  border-radius: 8px;
+  padding: 25px 20px;
+  background: linear-gradient(135deg, #f0fdf4, #e8f5e9);
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  border-left: 4px solid #2a4935;
+  transition: all 0.3s ease;
+}
+
+.invite-section:hover {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+}
+
+.invite-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2a4935;
 }
 
 .invite-form {
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .email-input {
   flex: 1;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 10px 14px;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border 0.3s ease;
+}
+
+.email-input:focus {
+  border-color: #2a4935;
+  box-shadow: 0 0 0 2px rgba(42, 73, 53, 0.1);
 }
 
 .invite-button {
-  background-color: #1976d2;
+  background-color: #2a4935;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.invite-button:hover {
+  background-color: #1f3627;
 }
 
 .summary-grid {
@@ -2577,53 +2698,132 @@ tr:hover {
   border-radius: 4px;
 }
 
-.settings-section {
-  margin-bottom: 30px;
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2a4935;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .setting-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 15px;
+}
+
+.setting-label {
+  font-weight: 600;
+  color: #2a4935;
+  font-size: 1.1rem;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  transition: color 0.3s ease;
+}
+
+.input-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .setting-input {
   flex: 1;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: border-color 0.3s ease;
+}
+
+.setting-input:focus {
+  border-color: #1976d2;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
 
 .save-button {
-  background-color: #1976d2;
+  background-color: #2a4935;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.save-button:hover:enabled {
+  background-color: #1f3627;
+}
+
+.save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  margin-top: 5px;
+  color: #d32f2f;
+  font-size: 0.85rem;
 }
 
 .danger-zone {
   padding: 20px;
-  background-color: #ffebee;
-  border-radius: 8px;
+  background-color: #fff5f5;
+  border-left: 4px solid #d32f2f;
+  border-radius: 10px;
+  margin-top: 40px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.danger-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #d32f2f;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .danger-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 15px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.danger-text {
+  color: #444;
+  font-size: 0.95rem;
+  max-width: 70%;
 }
 
 .delete-button {
   background-color: #d32f2f;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.9rem;
   cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.delete-button:hover:enabled {
+  background-color: #b71c1c;
+}
+
+.delete-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .modal-overlay {
@@ -2650,16 +2850,24 @@ tr:hover {
 }
 
 .modal-header {
+  position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding: 25px;
+  padding: 30px;
   border-bottom: 1px solid #2e4e38;
-  background-color: #7dc887; 
-  
+  background-color: #7dc887;  
 }
 
-.close-button {
+.modal-header h3 {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+}
+.modal-header .close-button {
+  position: absolute;
+  right: 10px;
   background: none;
   border: none;
   font-size: 1.5rem;
@@ -2686,16 +2894,34 @@ tr:hover {
 }
 
 .modal-header2 {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  padding: 20px;
-  justify-content: space-between;
+  padding: 15px 20px;
+  justify-content: center;
   align-items: center;
   background-color: #f56161;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
   border-bottom: 1px solid #a40505;
   color: black;
 }
 
+.modal-header2 h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.close-button {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: black;
+}
 
 .modal-body2 {
   padding: 20px;
