@@ -182,308 +182,325 @@
       </div>
 
       <div class="contribution-form">
-    <h3><i class="fas fa-edit"></i> Update Your Contribution</h3>
+    <h3><i class="fas fa-edit"></i> Add Your Contribution</h3>
     <div class="form-group">
-      <label>Amount (₱)</label>
-      <input 
-        type="number" 
-        v-model="paidAmountInput" 
-        placeholder="Enter amount"
-        min="0"
-        step="0.01"
-      >
-    </div>
-    <button 
-      @click="savePaidAmount" 
-      class="btn-save"
-      :disabled="paidAmountLoading"
+    <label>Amount (₱)</label>
+    <input 
+      type="number" 
+      v-model.number="paidAmountInput" 
+      placeholder="Enter amount"
+      min="0"
+      step="0.01"
+      @keyup.enter="saveContribution"
     >
-      <span v-if="paidAmountLoading">
-        <i class="fas fa-spinner fa-spin"></i> Saving...
-      </span>
-      <span v-else>Save Contribution</span>
-    </button>
+  </div>
+  <button 
+    @click="saveContribution" 
+    class="btn-save"
+    :disabled="paidAmountLoading || !paidAmountInput || paidAmountInput <= 0"
+  >
+    <span v-if="paidAmountLoading">
+      <i class="fas fa-spinner fa-spin"></i> Saving...
+    </span>
+    <span v-else>Save Contribution</span>
+  </button>
+  <div v-if="contributionHistory.length > 0" class="contribution-history">
+    <h4>Your Contribution History</h4>
+    <ul>
+      <li v-for="(contribution, index) in contributionHistory" :key="index">
+        {{ formatDate(contribution.date) }}: {{ formatPHP(contribution.amount) }}
+        <span class="status-badge" :class="contribution.status">
+          {{ contribution.status }}
+        </span>
+        <button 
+          @click="editContribution(contribution)" 
+          class="edit-btn"
+        >
+          <i class="fas fa-edit"></i>
+        </button>
+      </li>
+    </ul>
   </div>
 </div>
+  </div>
 
-    <div class="group-wrapper">
-    <div class="group-body">
-      <div class="group-tabs">
-        <button 
-          @click="activeTab = 'expenses'" 
-          :class="{ active: activeTab === 'expenses' }"
-        >
-          Expenses
-        </button>
-        <button @click="activeTab = 'members'" :class="{ active: activeTab === 'members' }">
+
+<div class="group-wrapper">
+  <div class="group-body">
+    <div class="group-tabs">
+      <button 
+        @click="activeTab = 'expenses'" 
+        :class="{ active: activeTab === 'expenses' }"
+      >
+        Expenses
+      </button>
+      <button @click="activeTab = 'members'" :class="{ active: activeTab === 'members' }">
         Members ({{ members?.length || 0 }})
-        </button>
-        <button 
-    @click="activeTab = 'contribution'" 
-    :class="{ active: activeTab === 'contribution' }"
-  >
-    My Contribution
-  </button>
-        <button 
-          v-if="isAdmin"
-          @click="activeTab = 'settings'" 
-          :class="{ active: activeTab === 'settings' }"
-        >
-          Settings
-        </button>
+      </button>
+      <button 
+        @click="activeTab = 'contribution'" 
+        :class="{ active: activeTab === 'contribution' }"
+      >
+        My Contribution
+      </button>
+      <button 
+        v-if="isAdmin"
+        @click="activeTab = 'settings'" 
+        :class="{ active: activeTab === 'settings' }"
+      >
+        Settings
+      </button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Expenses Tab -->
+      <div v-if="activeTab === 'expenses'" class="expenses-tab">
+        <div class="expense-controls">
+          <button @click="showAddExpenseModal = true" class="add-expense-button">
+            <i class="fas fa-plus"></i> Add <br> Expense
+          </button>
+        </div>
+
+        <div v-if="expensesLoading" class="loading-expenses">
+          <div class="spinner small"></div>
+        </div>
+
+        <div v-else-if="expensesError" class="error-message">
+          Error loading expenses: {{ expensesError }}
+          <button @click="loadExpenses" class="retry-btn">Retry</button>
+        </div>
+
+        <div v-else-if="!expenses">
+          <p>Expenses data not loaded</p>
+          <button @click="loadExpenses" class="retry-btn">Load Expenses</button>
+        </div>
+                
+        <div v-else-if="!filteredExpenses || filteredExpenses.length === 0" class="no-expenses">
+          <p>No expenses recorded for {{ currentMonthYear }}</p>
+        </div>
+                
+        <div v-else class="expenses-container">
+          <div class="expenses-section"> 
+            <h3><i class="fas fa-coins"></i> <span>YOUR <br> EXPENSES</span></h3> 
+            <div class="expenses-table"> 
+              <table>
+                <thead>
+                  <tr>
+                    <th>Expense Type</th>
+                    <th>Item Name</th>
+                    <th>Item Price</th>
+                    <th>Date</th>
+                    <th>Added By</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="expense in filteredExpenses" :key="expense.id">
+                    <td>{{ expense.expense_type || 'N/A' }}</td>
+                    <td>{{ expense.item_name || 'N/A' }}</td>
+                    <td>{{ formatPHP(expense.item_price) }}</td>
+                    <td>{{ formatDate(expense.expense_date) }}</td>
+                    <td>{{ expense.username }}</td>
+                    <td class="actions">
+                      <div class="action-buttons">
+                        <button 
+                          @click="editExpense(expense)" 
+                          class="edit-btn"
+                          :disabled="!canEditExpense(expense)"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          @click="confirmDeleteExpense(expense)" 
+                          class="delete-btn"
+                          :disabled="!canEditExpense(expense)"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="total-summary">
+                <div class="total-amount-card">
+                  <div class="total-label">TOTAL EXPENSES</div>
+                  <div class="amount-display">
+                    <span class="currency php">{{ formatPHP(totalAmount) }}</span>
+                    <span class="currency usd">≈ {{ formatUsd(convertPhpToUsd(totalAmount)) }}</span>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </div>
       </div>
 
-      <div class="tab-content">
-        <!-- Expenses Tab -->
-        <div v-if="activeTab === 'expenses'" class="expenses-tab">
-          <div class="expense-controls">
-            <button @click="showAddExpenseModal = true" class="add-expense-button">
-              <i class="fas fa-plus"></i> Add <br> Expense
-            </button>
-          </div>
+      <!-- Members Tab -->
+      <div v-if="activeTab === 'members'" class="members-tab">
+        <div v-if="promoteSuccess" class="promote-success-message">
+          <i class="fas fa-check-circle"></i>
+          {{ promoteSuccess }}
+          <button @click="promoteSuccess = ''" class="close-message">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
 
-          <div v-if="expensesLoading" class="loading-expenses">
-            <div class="spinner small"></div>
+        <div class="members-list">
+          <div v-for="member in members" :key="member.id" class="member-item">
+            <div class="member-info">
+              <span class="member-name">{{ member.username }}</span>
+              <span class="member-email">{{ member.email }}</span>
+            </div>
+            <div class="member-role">
+              <span :class="['role-badge', member.role]">
+                {{ member.role }}
+                <i v-if="member.role === 'admin'" class="fas fa-crown"></i>
+              </span>
+              <div class="member-actions" v-if="isAdmin && member.role !== 'admin'">
+                <button @click="promoteToAdmin(member)" class="promote-button">
+                  Promote to Admin
+                </button>
+                <button @click="confirmRemoveMember(member)" class="remove-button">
+                  Remove
+                </button>
+              </div>
+            </div>
           </div>
+        </div>
+        
+        <div v-if="!isAdmin" class="leave-group-section">
+          <h4><i class="fas fa-sign-out-alt"></i> Leave Group</h4>
+          <button @click="leaveGroup" class="leave-group-button">
+            Leave This Group
+          </button>
+          <p class="leave-group-warning">
+            Warning: This action cannot be undone. You'll need to be invited again to rejoin.
+          </p>
+        </div>
+        
+        <div v-else class="admin-leave-notice">
+          <h4><i class="fas fa-info-circle"></i> Admin Notice</h4>
+          <p>
+            As an admin, you cannot leave this group. 
+          </p>
+        </div>
+      </div>
 
-          <div v-else-if="expensesError" class="error-message">
-            Error loading expenses: {{ expensesError }}
-            <button @click="loadExpenses" class="retry-btn">Retry</button>
+      <!-- Contribution Tab -->
+      <div v-if="activeTab === 'contribution'" class="contribution-tab">
+        <div class="contribution-header">
+          <h2><i class="fas fa-hand-holding-usd"></i> Group Contributions</h2>
+          <p>Track and manage contributions and balances for this group</p>
+        </div>
+
+        <div class="contribution-summary">
+          <div class="summary-card">
+            <div class="summary-label">Total Expenses</div>
+            <div class="summary-amount">{{ formatPHP(totalAmount) }}</div>
           </div>
-  
-          <div v-else-if="!expenses">
-            <p>Expenses data not loaded</p>
-            <button @click="loadExpenses" class="retry-btn">Load Expenses</button>
+          <div class="summary-card">
+            <div class="summary-label">Total Contributed</div>
+            <div class="summary-amount">{{ formatPHP(totalContributions) }}</div>
           </div>
-                  
-                  <div v-else-if="!filteredExpenses || filteredExpenses.length === 0" class="no-expenses">
-            <p>No expenses recorded for {{ currentMonthYear }}</p>
+          <div class="summary-card">
+            <div class="summary-label">Your Share</div>
+            <div class="summary-amount">{{ formatPHP(yourShare) }}</div>
           </div>
-                  
-      <div v-else class="expenses-container">
-        <div class="expenses-section"> 
-          <h3><i class="fas fa-coins"></i> <span>YOUR <br> EXPENSES</span></h3> 
-          <div class="expenses-table"> 
+          <div class="summary-card">
+            <div class="summary-label">Your Balance</div>
+            <div class="summary-amount" :class="{ 'text-danger': yourBalance < 0, 'text-success': yourBalance >= 0 }">
+              {{ formatPHP(Math.abs(yourBalance)) }}
+              <span v-if="yourBalance < 0">(You owe)</span>
+              <span v-else>(You're owed)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="contribution-section">
+          <h3><i class="fas fa-users"></i> Member Contributions</h3>
+          <div class="member-contributions-table">
             <table>
               <thead>
                 <tr>
-                  <th>Expense Type</th>
-                  <th>Item Name</th>
-                  <th>Item Price</th>
-                  <th>Date</th>
-                  <th>Added By</th>
-                  <th>Actions</th>
+                  <th>Member</th>
+                  <th>Contributed</th>
+                  <th>Share</th>
+                  <th>Balance</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="expense in filteredExpenses" :key="expense.id">
-                  <td>{{ expense.expense_type || 'N/A' }}</td>
-                  <td>{{ expense.item_name || 'N/A' }}</td>
-                  <td>{{ formatPHP(expense.item_price) }}</td>
-                  <td>{{ formatDate(expense.expense_date) }}</td>
-                  <td>{{ expense.username }}</td>
-                  <td class="actions">
-                    <div class="action-buttons">
-                      <button 
-                        @click="editExpense(expense)" 
-                        class="edit-btn"
-                        :disabled="!canEditExpense(expense)"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        @click="confirmDeleteExpense(expense)" 
-                        class="delete-btn"
-                        :disabled="!canEditExpense(expense)"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                <tr v-for="member in memberContributions" :key="member.id">
+                  <td>{{ member.username }}</td>
+                  <td>{{ formatPHP(member.contributed) }}</td>
+                  <td>{{ formatPHP(member.share) }}</td>
+                  <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+                    {{ formatPHP(Math.abs(member.balance)) }}
+                    <span v-if="member.balance < 0">(Owes)</span>
+                    <span v-else>(Owed)</span>
+                  </td>
+                  <td>
+                    <span :class="['status-badge', member.status]">
+                      {{ member.status }}
+                    </span>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-        <div class="total-summary">
-              <div class="total-amount-card">
-                <div class="total-label">TOTAL EXPENSES</div>
-                <div class="amount-display">
-                  <span class="currency php">{{ formatPHP(totalAmount) }}</span>
-                  <span class="currency usd">≈ {{ formatUsd(convertPhpToUsd(totalAmount)) }}</span>
-                </div>
-              </div>
-            </div>
-        </div>
       </div>
-    </div>
-  
 
-        <!-- Members Tab -->
-        <div v-if="activeTab === 'members'" class="members-tab">
-  <div v-if="promoteSuccess" class="promote-success-message">
-    <i class="fas fa-check-circle"></i>
-    {{ promoteSuccess }}
-    <button @click="promoteSuccess = ''" class="close-message">
-      <i class="fas fa-times"></i>
-    </button>
-  </div>
-
-  <div class="members-list">
-    <div v-for="member in members" :key="member.id" class="member-item">
-      <div class="member-info">
-        <span class="member-name">{{ member.username }}</span>
-        <span class="member-email">{{ member.email }}</span>
-      </div>
-      <div class="member-role">
-        <span :class="['role-badge', member.role]">
-          {{ member.role }}
-          <i v-if="member.role === 'admin'" class="fas fa-crown"></i>
-        </span>
-        <div class="member-actions" v-if="isAdmin && member.role !== 'admin'">
-          <button @click="promoteToAdmin(member)" class="promote-button">
-            Promote to Admin
-          </button>
-          <button @click="confirmRemoveMember(member)" class="remove-button">
-            Remove
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <div v-if="!isAdmin" class="leave-group-section">
-    <h4><i class="fas fa-sign-out-alt"></i> Leave Group</h4>
-    <button @click="leaveGroup" class="leave-group-button">
-      Leave This Group
-    </button>
-    <p class="leave-group-warning">
-      Warning: This action cannot be undone. You'll need to be invited again to rejoin.
-    </p>
-  </div>
-  
-  <div v-else class="admin-leave-notice">
-    <h4><i class="fas fa-info-circle"></i> Admin Notice</h4>
-    <p>
-      As an admin, you cannot leave this group. 
-    </p>
-  </div>
-</div>
-
-<!-- Contribution Tab -->
-<div v-if="activeTab === 'contribution'" class="contribution-tab">
-  <div class="contribution-header">
-    <h2><i class="fas fa-hand-holding-usd"></i> Group Contributions</h2>
-    <p>Track and manage contributions and balances for this group</p>
-  </div>
-
-  <div class="contribution-summary">
-    <div class="summary-card">
-      <div class="summary-label">Total Expenses</div>
-      <div class="summary-amount">{{ formatPHP(totalAmount) }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Total Contributed</div>
-      <div class="summary-amount">{{ formatPHP(totalContributions) }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Your Share</div>
-      <div class="summary-amount">{{ formatPHP(yourShare) }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Your Balance</div>
-      <div class="summary-amount" :class="{ 'text-danger': yourBalance < 0, 'text-success': yourBalance >= 0 }">
-        {{ formatPHP(Math.abs(yourBalance)) }}
-        <span v-if="yourBalance < 0">(You owe)</span>
-        <span v-else>(You're owed)</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="contribution-section">
-    <h3><i class="fas fa-users"></i> Member Contributions</h3>
-    <div class="member-contributions-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Member</th>
-            <th>Contributed</th>
-            <th>Share</th>
-            <th>Balance</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="member in memberContributions" :key="member.id">
-            <td>{{ member.username }}</td>
-            <td>{{ formatPHP(member.contributed) }}</td>
-            <td>{{ formatPHP(member.share) }}</td>
-            <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
-              {{ formatPHP(Math.abs(member.balance)) }}
-              <span v-if="member.balance < 0">(Owes)</span>
-              <span v-else>(Owed)</span>
-            </td>
-            <td>
-              <span :class="['status-badge', member.status]">
-                {{ member.status }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-        <!-- Settings Tab (Admin Only) -->
-        <div v-if="activeTab === 'settings' && isAdmin" class="settings-tab">
-          <div class="settings-section">
-            <h3 class="section-title"><i class="fas fa-cog"></i> Group Settings</h3>
-           
-            <div class="setting-item">
-              <label class="setting-label">Group Name</label>
-          <div class="input-group">
-            <input 
-              v-model="group.group_name" 
-              @blur="handleNameUpdate"
-              @keyup.enter="handleNameUpdate"
-              type="text" 
-              class="setting-input"
-              :disabled="updatingName"
-            >
-            <button 
-              @click="handleNameUpdate" 
-              class="save-button"
-              :disabled="!nameChanged || updatingName"
-            >
-              <span v-if="updatingName">Saving...</span>
-              <span v-else>Save</span>
-            </button>
-          </div>
-          <p v-if="nameError" class="error-message">{{ nameError }}</p>
-          </div>
-        </div>
-          
-          <div class="danger-zone">
-            <h3 class="danger-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
-            <div class="danger-item">
-              <p class="danger-text">Delete this group permanently  (including all expenses and members) </p>
-              <button 
-                @click="confirmDeleteGroup" 
-                class="delete-button"
-                :disabled="deletingGroup"
+      <!-- Settings Tab (Admin Only) -->
+      <div v-if="activeTab === 'settings' && isAdmin" class="settings-tab">
+        <div class="settings-section">
+          <h3 class="section-title"><i class="fas fa-cog"></i> Group Settings</h3>
+         
+          <div class="setting-item">
+            <label class="setting-label">Group Name</label>
+            <div class="input-group">
+              <input 
+                v-model="group.group_name" 
+                @blur="handleNameUpdate"
+                @keyup.enter="handleNameUpdate"
+                type="text" 
+                class="setting-input"
+                :disabled="updatingName"
               >
-                <span v-if="deletingGroup">
-                  <i class="fas fa-spinner fa-spin"></i> Deleting...
-                </span>
-                <span v-else>Delete Group</span>
+              <button 
+                @click="handleNameUpdate" 
+                class="save-button"
+                :disabled="!nameChanged || updatingName"
+              >
+                <span v-if="updatingName">Saving...</span>
+                <span v-else>Save</span>
               </button>
-              <p v-if="deleteGroupError" class="error-message">{{ deleteGroupError }}</p>
             </div>
+            <p v-if="nameError" class="error-message">{{ nameError }}</p>
+          </div>
+        </div>
+        
+        <div class="danger-zone">
+          <h3 class="danger-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+          <div class="danger-item">
+            <p class="danger-text">Delete this group permanently (including all expenses and members)</p>
+            <button 
+              @click="confirmDeleteGroup" 
+              class="delete-button"
+              :disabled="deletingGroup"
+            >
+              <span v-if="deletingGroup">
+                <i class="fas fa-spinner fa-spin"></i> Deleting...
+              </span>
+              <span v-else>Delete Group</span>
+            </button>
+            <p v-if="deleteGroupError" class="error-message">{{ deleteGroupError }}</p>
           </div>
         </div>
       </div>
     </div>
-  </div>
   </div>
 
 
@@ -598,6 +615,7 @@
     </div>
   </div>
   </div>
+  </div>
 </template>
 
 <script>
@@ -681,8 +699,10 @@ export default {
     }),
 
     totalContributions() {
-    if (!this.memberContributions) return 0;
-    return this.memberContributions.reduce((total, member) => total + member.contributed, 0);
+    if (!this.contributions) return 0;
+    return this.contributions.reduce((total, contribution) => {
+      return total + parseFloat(contribution.amount || 0);
+    }, 0);
   },
   
   yourShare() {
@@ -702,7 +722,7 @@ export default {
     return this.members.map(member => {
       const contributed = this.contributions
         .filter(c => c.user_id === member.id)
-        .reduce((sum, c) => sum + c.amount, 0);
+        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
       
       const share = this.totalAmount / this.members.length;
       const balance = contributed - share;
@@ -857,7 +877,9 @@ export default {
     console.log('Initializing group data...');
     await this.initializeGroupData();
     console.log('Fetching contributions...');
-    await this.fetchAllContributions();
+    await this.fetchContributions();
+    console.log('Fetching contribution history...');
+    await this.fetchContributionHistory();
     console.log('Fetching budget data...');
     await this.fetchBudgetData();
     console.log('Fetching group data...');
@@ -870,7 +892,11 @@ export default {
     
     this.originalName = this.group.group_name || '';
 
-    await this.fetchUserGroups();
+    await Promise.all([
+      this.fetchUserGroups(),
+      this.fetchContributions(),
+      this.fetchContributionHistory()
+    ]);
    // await this.fetchAvailableBudgets();
   } catch (err) {
     console.error('Failed to load group data:', err);
@@ -993,7 +1019,28 @@ export default {
     this.isEditingBudget = false;
   },
 
-  async fetchAllContributions() {
+  async fetchContributionHistory() {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const response = await this.$axios.get(
+        `/api/grp_expenses/groups/${this.localGroupId}/contribution-history`,
+        {
+          params: { user_id: user.id },
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        this.contributionHistory = response.data.history || [];
+      }
+    } catch (error) {
+      console.error('Failed to fetch contribution history:', error);
+    }
+  },
+
+  async fetchContributions() {
     try {
       const response = await this.$axios.get(
         `/api/grp_expenses/groups/${this.localGroupId}/contributions`,
@@ -1006,20 +1053,44 @@ export default {
       
       if (response.data.success) {
         this.contributions = response.data.contributions || [];
+        this.updateMemberContributions();
       }
     } catch (error) {
       console.error('Failed to fetch contributions:', error);
+      this.showError('Failed to load contributions');
     }
   },
-  
-  async savePaidAmount() {
+
+  updateMemberContributions() {
+    if (!this.members || !this.contributions) return;
+    
+    this.memberContributions = this.members.map(member => {
+      const contributed = this.contributions
+        .filter(c => c.user_id === member.id)
+        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
+      
+      const share = this.totalAmount / this.members.length;
+      const balance = contributed - share;
+      
+      return {
+        id: member.id,
+        username: member.username,
+        contributed,
+        share,
+        balance,
+        status: balance >= 0 ? 'completed' : 'pending'
+      };
+    });
+  },
+
+  async saveContribution() {
     if (this.paidAmountLoading) return;
     
     try {
       this.paidAmountLoading = true;
       const amount = parseFloat(this.paidAmountInput);
       
-      if (isNaN(amount)) {
+      if (isNaN(amount) || amount <= 0) {
         this.showError('Please enter a valid amount');
         return;
       }
@@ -1029,7 +1100,8 @@ export default {
         `/api/grp_expenses/groups/${this.localGroupId}/contributions`,
         { 
           amount,
-          user_id: user.id
+          user_id: user.id,
+          group_id: this.localGroupId 
         },
         {
           headers: {
@@ -1040,7 +1112,11 @@ export default {
       
       if (response.data.success) {
         this.showSuccess('Contribution saved successfully!');
-        await this.fetchAllContributions();
+        this.paidAmountInput = 0;
+        await Promise.all([
+          this.fetchContributions(),
+          this.fetchContributionHistory()
+        ]);
       }
     } catch (error) {
       console.error('Failed to save contribution:', error);
@@ -1755,6 +1831,76 @@ async handleUpdateExpense() {
 </script>
 
 <style scoped>
+.contribution-form {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.contribution-form .form-group {
+  margin-bottom: 15px;
+}
+
+.contribution-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.contribution-form input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.contribution-history {
+  margin-top: 20px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.contribution-history h4 {
+  margin-bottom: 10px;
+  color: #444;
+}
+
+.contribution-history ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.contribution-history li {
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.completed {
+  background-color: #e6f7ee;
+  color: #10b981;
+}
+
+.status-badge.pending {
+  background-color: #fff3e6;
+  color: #f59e0b;
+}
+
 .contribution-tab {
   padding: 20px;
   background: #fff;
