@@ -130,4 +130,91 @@ router.put('/groups/:groupId/members/:memberId/promote',
     }
   }
 );
+
+// Add these new routes to your router file
+router.route('/groups/:groupId/contributions')
+  .get(groupAuth('member'), async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      
+      const [contributions] = await pool.query(
+        `SELECT 
+          c.user_id,
+          u.username,
+          c.amount,
+          c.created_at as date,
+          c.status
+         FROM contributions c
+         JOIN users u ON c.user_id = u.id
+         WHERE c.group_id = ?
+         ORDER BY c.created_at DESC`,
+        [groupId]
+      );
+
+      return res.json({
+        success: 1,
+        contributions
+      });
+    } catch (err) {
+      console.error('Error fetching contributions:', err);
+      return res.status(500).json({
+        success: 0,
+        message: 'Failed to fetch contributions'
+      });
+    }
+  })
+  .post(groupAuth('member'), async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      const { amount, user_id } = req.body;
+
+      await pool.query(
+        'INSERT INTO contributions (group_id, user_id, amount, status) VALUES (?, ?, ?, ?)',
+        [groupId, user_id, amount, 'completed']
+      );
+
+      return res.json({
+        success: 1,
+        message: 'Contribution saved successfully'
+      });
+    } catch (err) {
+      console.error('Error saving contribution:', err);
+      return res.status(500).json({
+        success: 0,
+        message: 'Failed to save contribution'
+      });
+    }
+  });
+
+router.get('/groups/:groupId/contribution-history', 
+  groupAuth('member'), 
+  async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user.userId;
+
+      const [history] = await pool.query(
+        `SELECT 
+          amount, 
+          created_at as date, 
+          status 
+         FROM contribution_history 
+         WHERE group_id = ? AND user_id = ?
+         ORDER BY created_at DESC`,
+        [groupId, userId]
+      );
+
+      return res.json({
+        success: 1,
+        history
+      });
+    } catch (err) {
+      console.error('Error fetching contribution history:', err);
+      return res.status(500).json({
+        success: 0,
+        message: 'Failed to fetch contribution history'
+      });
+    }
+  }
+);
 module.exports = router;
