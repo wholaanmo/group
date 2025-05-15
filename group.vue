@@ -505,34 +505,6 @@
     </div>
   </div>
 
-  <!-- Edit Contribution Modal -->
-<div v-if="showEditContributionModal" class="modal-overlay">
-  <div class="modal-content">
-    <h3>Edit Contribution</h3>
-    
-    <div class="form-group">
-      <label>Amount (₱)</label>
-      <input 
-        type="number" 
-        v-model.number="editingContribution.amount" 
-        placeholder="Enter amount"
-        min="0"
-        step="0.01"
-        class="form-control"
-      >
-    </div>
-    
-    <div class="modal-actions">
-      <button @click="updateContribution" class="btn-save">
-        Save Changes
-      </button>
-      <button @click="cancelEditContribution" class="btn-cancel">
-        Cancel
-      </button>
-    </div>
-  </div>
-</div>
-
     <!-- Add Expense Modal -->
     <div v-if="showAddExpenseModal" class="modal-overlay">
       <div class="modal-content">
@@ -586,9 +558,37 @@
       </div>
     </div>
 
+      <!-- Edit Contribution Modal -->
+<div v-if="showEditContributionModal" class="modal-overlay">
+  <div class="con-contribution">
+    <h3>Edit Contribution</h3>
+    
+    <div class="form-group">
+      <label>Amount (₱)</label>
+      <input 
+        type="number" 
+        v-model.number="editingContribution.amount" 
+        placeholder="Enter amount"
+        min="0"
+        step="0.01"
+        class="form-control"
+      >
+    </div>
+    
+    <div class="modal-actions">
+      <button @click="updateContribution" class="btn-save">
+        Save Changes
+      </button>
+      <button @click="cancelEditContribution" class="btn-cancel">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
     <!-- Edit Expense Modal -->
     <div v-if="showEditExpenseModal" class="modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content1">
         <div class="modal-header">
           <h3>Edit Expense</h3>
           <button @click="closeModal" class="close-button">&times;</button>
@@ -828,6 +828,7 @@ export default {
     async handler(newGroupId) {
       if (newGroupId && newGroupId !== this.localGroupId) {
         this.localGroupId = newGroupId;
+        await this.fetchContributionHistory();
         await this.initializeGroupData();
         this.originalName = this.group.group_name || '';
       }
@@ -1115,14 +1116,25 @@ export default {
   },
 
   async editContribution(contribution) {
+    console.log('Editing contribution:', contribution); // Debug log
+  if (!contribution || !contribution.id) {
+    this.showError('Invalid contribution data');
+    return;
+  }
     this.editingContribution = { 
       ...contribution, 
-      originalAmount: contribution.amount 
+      originalAmount: contribution.amount ,
+      id: contribution.id
     };
     this.showEditContributionModal = true;
   },
 
   async updateContribution() {
+    if (!this.editingContribution.id) {
+    this.showError('Invalid contribution ID');
+    return;
+  }
+
     try {
       const response = await this.$axios.put(
         `/api/grp_expenses/groups/${this.localGroupId}/contributions/${this.editingContribution.id}`,
@@ -1950,6 +1962,20 @@ async handleUpdateExpense() {
 </script>
 
 <style scoped>
+.no-contributions {
+  background-color: #f0f7f4;
+  border: 1px solid #c8e3d5;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px auto;
+  max-width: 500px;
+  text-align: center;
+  color: #2a4935;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+}
 .button-edit, .button-delete {
   padding: 6px 14px;
   font-size: 0.9rem;
@@ -2008,13 +2034,7 @@ async handleUpdateExpense() {
   z-index: 1000;
 }
 
-.modal-content {
-  background: white;
-  padding: 25px;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 400px;
-}
+
 
 .modal-actions {
   display: flex;
@@ -2027,6 +2047,28 @@ async handleUpdateExpense() {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
+}
+
+.con-contribution {
+  background: linear-gradient(135deg, #f5fbf8, #e8f7ef);
+  border: 2px solid #a8e0ce;
+  border-radius: 16px;
+  padding: 30px 40px;
+  width: 100%;
+  max-width: 450px;
+  margin: 100px auto;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 10px 28px rgba(44, 88, 73, 0.08);
+  text-align: left;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.con-contribution h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #2a4935;
+  margin-bottom: 20px;
+  margin-top: 0px;
 }
 .btn-save {
   display: flex;
@@ -3858,14 +3900,17 @@ Z
   z-index: 1000;
 }
 
-.modal-content {
-  background-color: white;
-  border-radius: 18px;
-  width: 90%;
+
+.modal-content1 {
+  background-color: #f9fefc;
+  border-radius: 16px;
   max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border: 1px solid #2a4935;
+  width: 100%;
+  margin: 100px auto;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .modal-header {
@@ -3953,8 +3998,9 @@ Z
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
   font-weight: bold;
+  color: #4f7a6b;
 }
 
 .form-group input {
