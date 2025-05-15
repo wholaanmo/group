@@ -336,7 +336,7 @@
   <div v-else class="admin-leave-notice">
     <h4><i class="fas fa-info-circle"></i> Admin Notice</h4>
     <p>
-      As an admin, you cannot leave this group. Please transfer admin rights to another member first.
+      As an admin, you cannot leave this group. 
     </p>
   </div>
 </div>
@@ -1528,9 +1528,9 @@ async handleUpdateExpense() {
     },
     
     canEditExpense(expense) {
-      const userId = JSON.parse(localStorage.getItem('user')).id;
-      return this.isAdmin || expense.user_id === userId;
-    },
+  const userId = JSON.parse(localStorage.getItem('user')).id;
+  return expense.user_id === userId; 
+  },
     
     closeModal() {
       this.showAddExpenseModal = false;
