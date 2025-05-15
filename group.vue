@@ -180,7 +180,31 @@
         </div>
         </div>
       </div>
+
+      <div class="contribution-form">
+    <h3><i class="fas fa-edit"></i> Update Your Contribution</h3>
+    <div class="form-group">
+      <label>Amount (₱)</label>
+      <input 
+        type="number" 
+        v-model="paidAmountInput" 
+        placeholder="Enter amount"
+        min="0"
+        step="0.01"
+      >
     </div>
+    <button 
+      @click="savePaidAmount" 
+      class="btn-save"
+      :disabled="paidAmountLoading"
+    >
+      <span v-if="paidAmountLoading">
+        <i class="fas fa-spinner fa-spin"></i> Saving...
+      </span>
+      <span v-else>Save Contribution</span>
+    </button>
+  </div>
+</div>
 
     <div class="group-wrapper">
     <div class="group-body">
@@ -194,6 +218,12 @@
         <button @click="activeTab = 'members'" :class="{ active: activeTab === 'members' }">
         Members ({{ members?.length || 0 }})
         </button>
+        <button 
+    @click="activeTab = 'contribution'" 
+    :class="{ active: activeTab === 'contribution' }"
+  >
+    My Contribution
+  </button>
         <button 
           v-if="isAdmin"
           @click="activeTab = 'settings'" 
@@ -288,7 +318,6 @@
       </div>
     </div>
   
-  
 
         <!-- Members Tab -->
         <div v-if="activeTab === 'members'" class="members-tab">
@@ -341,6 +370,70 @@
   </div>
 </div>
 
+<!-- Contribution Tab -->
+<div v-if="activeTab === 'contribution'" class="contribution-tab">
+  <div class="contribution-header">
+    <h2><i class="fas fa-hand-holding-usd"></i> Group Contributions</h2>
+    <p>Track and manage contributions and balances for this group</p>
+  </div>
+
+  <div class="contribution-summary">
+    <div class="summary-card">
+      <div class="summary-label">Total Expenses</div>
+      <div class="summary-amount">{{ formatPHP(totalAmount) }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Total Contributed</div>
+      <div class="summary-amount">{{ formatPHP(totalContributions) }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Your Share</div>
+      <div class="summary-amount">{{ formatPHP(yourShare) }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Your Balance</div>
+      <div class="summary-amount" :class="{ 'text-danger': yourBalance < 0, 'text-success': yourBalance >= 0 }">
+        {{ formatPHP(Math.abs(yourBalance)) }}
+        <span v-if="yourBalance < 0">(You owe)</span>
+        <span v-else>(You're owed)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="contribution-section">
+    <h3><i class="fas fa-users"></i> Member Contributions</h3>
+    <div class="member-contributions-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Contributed</th>
+            <th>Share</th>
+            <th>Balance</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="member in memberContributions" :key="member.id">
+            <td>{{ member.username }}</td>
+            <td>{{ formatPHP(member.contributed) }}</td>
+            <td>{{ formatPHP(member.share) }}</td>
+            <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+              {{ formatPHP(Math.abs(member.balance)) }}
+              <span v-if="member.balance < 0">(Owes)</span>
+              <span v-else>(Owed)</span>
+            </td>
+            <td>
+              <span :class="['status-badge', member.status]">
+                {{ member.status }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
         <!-- Settings Tab (Admin Only) -->
         <div v-if="activeTab === 'settings' && isAdmin" class="settings-tab">
           <div class="settings-section">
@@ -390,6 +483,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
 
 
@@ -522,6 +616,10 @@ export default {
   },
   data() {
     return {
+      contributions: [],
+      paidAmountInput: 0,
+      contributionHistory: [],
+      paidAmountLoading: false,
       localGroupId: this.groupId,
       showGroupList: false,
       userGroups: [],
@@ -581,6 +679,44 @@ export default {
       isAdmin: state => state.isAdmin,
       groupBudget: state => state.groupBudget || {}
     }),
+
+    totalContributions() {
+    if (!this.memberContributions) return 0;
+    return this.memberContributions.reduce((total, member) => total + member.contributed, 0);
+  },
+  
+  yourShare() {
+    return this.totalAmount / (this.members?.length || 1);
+  },
+  
+  yourBalance() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const yourContribution = this.memberContributions?.find(m => m.id === user?.id)?.contributed || 0;
+    return yourContribution - this.yourShare;
+  },
+  
+  memberContributions() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!this.members || !this.contributions) return [];
+    
+    return this.members.map(member => {
+      const contributed = this.contributions
+        .filter(c => c.user_id === member.id)
+        .reduce((sum, c) => sum + c.amount, 0);
+      
+      const share = this.totalAmount / this.members.length;
+      const balance = contributed - share;
+      
+      return {
+        id: member.id,
+        username: member.username,
+        contributed,
+        share,
+        balance,
+        status: balance >= 0 ? 'completed' : 'pending'
+      };
+    });
+  },
 
     hasBudget() {
   return this.groupBudget && this.groupBudget.budget_amount !== undefined && this.groupBudget.budget_amount !== null;
@@ -720,6 +856,8 @@ export default {
   try {
     console.log('Initializing group data...');
     await this.initializeGroupData();
+    console.log('Fetching contributions...');
+    await this.fetchAllContributions();
     console.log('Fetching budget data...');
     await this.fetchBudgetData();
     console.log('Fetching group data...');
@@ -853,6 +991,63 @@ export default {
   cancelBudgetForm() {
     this.isAddingBudget = false;
     this.isEditingBudget = false;
+  },
+
+  async fetchAllContributions() {
+    try {
+      const response = await this.$axios.get(
+        `/api/grp_expenses/groups/${this.localGroupId}/contributions`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        this.contributions = response.data.contributions || [];
+      }
+    } catch (error) {
+      console.error('Failed to fetch contributions:', error);
+    }
+  },
+  
+  async savePaidAmount() {
+    if (this.paidAmountLoading) return;
+    
+    try {
+      this.paidAmountLoading = true;
+      const amount = parseFloat(this.paidAmountInput);
+      
+      if (isNaN(amount)) {
+        this.showError('Please enter a valid amount');
+        return;
+      }
+      
+      const user = JSON.parse(localStorage.getItem('user'));
+      const response = await this.$axios.post(
+        `/api/grp_expenses/groups/${this.localGroupId}/contributions`,
+        { 
+          amount,
+          user_id: user.id
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        this.showSuccess('Contribution saved successfully!');
+        await this.fetchAllContributions();
+      }
+    } catch (error) {
+      console.error('Failed to save contribution:', error);
+      this.showError(error.response?.data?.message || 'Failed to save contribution');
+    } finally {
+      this.paidAmountLoading = false;
+    }
   },
   
   async showAddBudgetForm() {
@@ -1220,20 +1415,6 @@ async updateBudget() {
       return `${year}-${month}`;
     },
     
-    prevMonth() {
-      const date = new Date(this.currentMonthYear);
-      date.setMonth(date.getMonth() - 1);
-      this.currentMonthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      this.loadExpenses();  
-    },
-    
-    nextMonth() {
-      const date = new Date(this.currentMonthYear);
-      date.setMonth(date.getMonth() + 1);
-      this.currentMonthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      this.loadExpenses(); 
-    },
-    
     copyGroupCode() {
       navigator.clipboard.writeText(this.currentGroup.group_code);
       this.$notify({
@@ -1574,6 +1755,118 @@ async handleUpdateExpense() {
 </script>
 
 <style scoped>
+.contribution-tab {
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.contribution-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.contribution-header h2 {
+  color: #2c3e50;
+  margin-bottom: 5px;
+}
+
+.contribution-header p {
+  color: #7f8c8d;
+  margin: 0;
+}
+
+.contribution-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.summary-card {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  color: #7f8c8d;
+  margin-bottom: 5px;
+}
+
+.summary-amount {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.text-danger {
+  color: #e74c3c;
+}
+
+.text-success {
+  color: #27ae60;
+}
+.contribution-form {
+  max-width: 500px;
+  margin: 0 auto 40px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.contribution-form h3 {
+  margin-top: 0;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.contribution-history {
+  margin-top: 30px;
+}
+
+.member-contributions-table {
+  overflow-x: auto;
+  margin-bottom: 30px;
+}
+
+.member-contributions-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.member-contributions-table th,
+.member-contributions-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.member-contributions-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+.status-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.completed {
+  background-color: #e3f7e8;
+  color: #27ae60;
+}
+
+.status-badge.pending {
+  background-color: #fff3e0;
+  color: #f39c12;
+}
+
+
 .leave-group-section,
 .admin-leave-notice {
   margin: 20px auto 0px auto;
