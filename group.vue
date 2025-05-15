@@ -142,7 +142,7 @@
                   </div>
                 </div>
 
-                <div v-else>
+                <div v-else class="no-budget">
                   <p>No budget set for this group</p>
                 </div>
               </div>
@@ -259,9 +259,14 @@
       <!-- Expenses Tab -->
       <div v-if="activeTab === 'expenses'" class="expenses-tab">
         <div class="expense-controls">
-          <button @click="showAddExpenseModal = true" class="add-expense-button">
-            <i class="fas fa-plus"></i> Add <br> Expense
-          </button>
+          <button 
+  @click="showAddExpenseModal = true" 
+  class="add-expense-button"
+  :disabled="!hasBudget"
+>
+  <i class="fas fa-plus"></i> Add <br> Expense
+  <span v-if="!hasBudget" class="tooltip">Please set a budget first</span>
+</button>
         </div>
 
         <div v-if="expensesLoading" class="loading-expenses">
@@ -507,7 +512,7 @@
 
     <!-- Add Expense Modal -->
     <div v-if="showAddExpenseModal" class="modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content2">
         <div class="modal-header">
           <h3>Add New Expense</h3>
           <button @click="closeModal" class="close-button">&times;</button>
@@ -1077,9 +1082,14 @@ export default {
   this.showConfirmationModal = true;
 },
 
-    showError(message) {
-    console.error(message);
-    },
+showError(message) {
+    this.$notify({
+      title: 'Error',
+      message: message,
+      type: 'error',
+      duration: 5000
+    });
+  },
 
   showSuccess(message) {
     if (this._isMounted) { // Check if component is still mounted
@@ -1635,6 +1645,11 @@ async updateBudget() {
     },
     
     async submitExpense() {
+      if (!this.hasBudget) {
+    this.showError('Please set a group budget before adding expenses');
+    return;
+  }
+
       try {
         const user = JSON.parse(localStorage.getItem('user'));
 
@@ -1971,6 +1986,23 @@ async handleUpdateExpense() {
 </script>
 
 <style scoped>
+.no-budget {
+  background-color: #f4f8f6;
+  border: 1px dashed #b6cfc5;
+  padding: 16px 24px;
+  border-radius: 8px;
+  text-align: center;
+  color: #4e7e6a;
+  font-weight: 500;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  margin-top: 20px;
+}
+
+.no-budget p {
+  margin: 0;
+  font-size: 1rem;
+}
 .no-contributions {
   background-color: #f0f7f4;
   border: 1px solid #c8e3d5;
@@ -3467,6 +3499,7 @@ Z
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   margin: 0 auto; /* This centers the button */
   width: 100%;
+  position: relative;
 }
 
 .add-expense-button:hover {
@@ -3479,6 +3512,23 @@ Z
   font-size: 1.1rem;
 }
 
+.add-expense-button .tooltip {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  display: none;
+}
+
+.add-expense-button:disabled:hover .tooltip {
+  display: block;
+}
 .expenses-list {
   display: flex;
   flex-direction: column;
@@ -3922,6 +3972,17 @@ Z
   overflow: hidden;
 }
 
+.modal-content2 {
+  background-color: #f9fefc;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  margin: 100px auto;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
 .modal-header {
   position: relative;
   display: flex;
@@ -4038,27 +4099,42 @@ small {
   margin-top: 20px;
 }
 
-.cancel-button {
-  background-color: #f5f5f5;
-  color: #333;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
 button.cancel-button{
   border: 1px solid #2e4e38;
 }
 
 .submit-button {
-  background-color: #2a4935;
-  color: white;
+  background: linear-gradient(135deg, #3f6b55, #2a4935);
+  color: #fff;
   border: none;
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s ease, transform 0.2s ease;
 }
+
+.submit-button:hover {
+  background: linear-gradient(135deg, #4d8167, #2f5740);
+  transform: scale(1.03);
+}
+
+.cancel-button {
+  background-color: #f0f2f1;
+  color: #2a2a2a;
+  border: 1px solid #d6dcd9;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.cancel-button:hover {
+  background-color: #e2e7e5;
+  transform: scale(1.02);
+}
+
 
 .confirmation-modal {
   text-align: center;
