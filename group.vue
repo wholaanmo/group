@@ -559,7 +559,7 @@
     </div>
 
       <!-- Edit Contribution Modal -->
-<div v-if="showEditContributionModal" class="modal-overlay">
+      <div v-if="showEditContributionModal" class="modal-overlay">
   <div class="con-contribution">
     <h3>Edit Contribution</h3>
     
@@ -572,11 +572,12 @@
         min="0"
         step="0.01"
         class="form-control"
+        @keyup.enter="updateContribution"
       >
     </div>
     
     <div class="modal-actions">
-      <button @click="updateContribution" class="btn-save">
+      <button @click="updateContribution" class="btn-save" :disabled="!editingContribution.amount || editingContribution.amount <= 0">
         Save Changes
       </button>
       <button @click="cancelEditContribution" class="btn-cancel">
@@ -1116,47 +1117,54 @@ export default {
   },
 
   async editContribution(contribution) {
-    console.log('Editing contribution:', contribution); // Debug log
-  if (!contribution || !contribution.id) {
-    this.showError('Invalid contribution data');
+    const plainContribution = JSON.parse(JSON.stringify(contribution));
+  console.log('Editing contribution:', plainContribution);
+
+  if (!plainContribution.id) {
+    this.showError('Contribution ID is missing');
     return;
   }
-    this.editingContribution = { 
-      ...contribution, 
-      originalAmount: contribution.amount ,
-      id: contribution.id
-    };
-    this.showEditContributionModal = true;
-  },
+  
+  this.editingContribution = {
+    id: plainContribution.id,
+    amount: parseFloat(plainContribution.amount),
+    date: plainContribution.date,
+    status: plainContribution.status,
+    originalAmount: parseFloat(plainContribution.amount)
+  };
+  this.showEditContributionModal = true;
+},
 
-  async updateContribution() {
-    if (!this.editingContribution.id) {
+async updateContribution() {
+  if (!this.editingContribution?.id) {
     this.showError('Invalid contribution ID');
     return;
   }
 
-    try {
-      const response = await this.$axios.put(
-        `/api/grp_expenses/groups/${this.localGroupId}/contributions/${this.editingContribution.id}`,
-        { amount: this.editingContribution.amount },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-          }
+  try {
+    const response = await this.$axios.put(
+      `/api/grp_expenses/groups/${this.localGroupId}/contributions/${this.editingContribution.id}`,
+      { amount: this.editingContribution.amount },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
         }
-      );
-      
-      if (response.data.success) {
-        this.showSuccess('Contribution updated successfully!');
-        await this.fetchContributionHistory();
-        await this.fetchContributions();
-        this.showEditContributionModal = false;
       }
-    } catch (error) {
-      console.error('Failed to update contribution:', error);
-      this.showError(error.response?.data?.message || 'Failed to update contribution');
+    );
+    
+    if (response.data.success) {
+      this.showSuccess('Contribution updated successfully!');
+      await Promise.all([
+        this.fetchContributionHistory(),
+        this.fetchContributions()
+      ]);
+      this.showEditContributionModal = false;
     }
-  },
+  } catch (error) {
+    console.error('Failed to update contribution:', error);
+    this.showError(error.response?.data?.message || 'Failed to update contribution');
+  }
+},
   
   cancelEditContribution() {
     if (this.editingContribution.originalAmount) {
@@ -1180,6 +1188,7 @@ export default {
       
       if (response.data.success) {
         this.contributionHistory = response.data.history || [];
+      console.log('Fetched contribution history:', this.contributionHistory);
       }
     } catch (error) {
       console.error('Failed to fetch contribution history:', error);
