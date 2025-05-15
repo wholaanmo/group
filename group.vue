@@ -204,26 +204,63 @@
     </span>
     <span v-else>Save Contribution</span>
   </button>
-  <div v-if="contributionHistory.length > 0" class="contribution-history">
-    <h4>Your Contribution History</h4>
-    <ul>
-      <li v-for="(contribution, index) in contributionHistory" :key="index">
-        {{ formatDate(contribution.date) }}: {{ formatPHP(contribution.amount) }}
-        <span class="status-badge" :class="contribution.status">
-          {{ contribution.status }}
-        </span>
-        <button 
-          @click="editContribution(contribution)" 
-          class="edit-btn"
-        >
-          <i class="fas fa-edit"></i>
-        </button>
-      </li>
-    </ul>
+ <div v-if="contributionHistory.length > 0" class="contribution-history">
+    <h3><i class="fas fa-history"></i> Your Contribution History</h3>
+    <div class="history-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(contribution, index) in contributionHistory" :key="index">
+            <td>{{ formatDate(contribution.date || contribution.created_at) }}</td>
+            <td>{{ formatPHP(contribution.amount) }}</td>
+            <td>
+              <button 
+                @click="editContribution(contribution)" 
+                class="btn-edit"
+                title="Edit contribution"
+              >
+                <i class="fas fa-edit"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
-  </div>
+</div>
 
+<div v-if="showEditContributionModal" class="modal-overlay">
+  <div class="modal-content">
+    <h3>Edit Contribution</h3>
+    
+    <div class="form-group">
+      <label>Amount:</label>
+      <input 
+        type="number" 
+        v-model="editingContribution.amount" 
+        min="0" 
+        step="0.01"
+        class="form-control"
+      >
+    </div>
+    
+    <div class="modal-actions">
+      <button @click="updateContribution" class="btn-primary">
+        Save Changes
+      </button>
+      <button @click="cancelEditContribution" class="btn-secondary">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
 
 <div class="group-wrapper">
   <div class="group-body">
@@ -241,7 +278,7 @@
         @click="activeTab = 'contribution'" 
         :class="{ active: activeTab === 'contribution' }"
       >
-        My Contribution
+        Group Contribution
       </button>
       <button 
         v-if="isAdmin"
@@ -433,18 +470,18 @@
               </thead>
               <tbody>
                 <tr v-for="member in memberContributions" :key="member.id">
-                  <td>{{ member.username }}</td>
-                  <td>{{ formatPHP(member.contributed) }}</td>
-                  <td>{{ formatPHP(member.share) }}</td>
-                  <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
-                    {{ formatPHP(Math.abs(member.balance)) }}
-                    <span v-if="member.balance < 0">(Owes)</span>
-                    <span v-else>(Owed)</span>
-                  </td>
-                  <td>
-                    <span :class="['status-badge', member.status]">
-                      {{ member.status }}
-                    </span>
+        <td>{{ member.username }}</td>
+        <td>{{ formatPHP(member.contributed) }}</td>
+        <td>{{ formatPHP(member.share) }}</td>
+        <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+          {{ formatPHP(Math.abs(member.balance)) }}
+          <span v-if="member.balance < 0">(Owes)</span>
+          <span v-else>(Owed)</span>
+        </td>
+        <td>
+          <span :class="['status-badge', member.status]">
+            {{ member.status }}
+          </span>
                   </td>
                 </tr>
               </tbody>
@@ -634,6 +671,7 @@ export default {
   },
   data() {
     return {
+      memberContributions: [],
       contributions: [],
       paidAmountInput: 0,
       contributionHistory: [],
@@ -668,6 +706,14 @@ export default {
       showEditExpenseModal: false,
       showConfirmationModal: false,
       promoteSuccess: '',
+      showEditContributionModal: false,
+      editingContribution: {
+      id: null,
+      amount: 0,
+      date: '',
+      status: '',
+      originalAmount: 0
+    },
       
       // Form data
       newExpense: {
@@ -715,29 +761,6 @@ export default {
     return yourContribution - this.yourShare;
   },
   
-  memberContributions() {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!this.members || !this.contributions) return [];
-    
-    return this.members.map(member => {
-      const contributed = this.contributions
-        .filter(c => c.user_id === member.id)
-        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
-      
-      const share = this.totalAmount / this.members.length;
-      const balance = contributed - share;
-      
-      return {
-        id: member.id,
-        username: member.username,
-        contributed,
-        share,
-        balance,
-        status: balance >= 0 ? 'completed' : 'pending'
-      };
-    });
-  },
-
     hasBudget() {
   return this.groupBudget && this.groupBudget.budget_amount !== undefined && this.groupBudget.budget_amount !== null;
 },
@@ -824,6 +847,12 @@ export default {
       this.calculateRemaining();
     }
   },
+  'contributions': {
+    deep: true,
+    handler() {
+      this.updateMemberContributions();
+    }
+  },
 
     budgetSuccessMessage(newVal) {
     if (newVal) {
@@ -892,11 +921,14 @@ export default {
     
     this.originalName = this.group.group_name || '';
 
-    await Promise.all([
-      this.fetchUserGroups(),
-      this.fetchContributions(),
-      this.fetchContributionHistory()
-    ]);
+    await this.initializeGroupData();
+     await this.fetchUserGroups(),
+     await this.fetchContributions();
+     await this.fetchContributionHistory();
+
+    this.contributions = this.contributions || [];
+    this.memberContributions = this.memberContributions || [];
+    
    // await this.fetchAvailableBudgets();
   } catch (err) {
     console.error('Failed to load group data:', err);
@@ -927,6 +959,73 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
+
+    formatDate(dateString) {
+    if (!dateString) return '';
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  },
+
+    showContributionDetails(userId) {
+  const userContributions = this.contributions.filter(c => c.user_id === userId);
+  const userName = this.members.find(m => m.id === userId)?.username || 'Member';
+  
+  this.$notify({
+    title: `${userName}'s Contributions`,
+    message: `
+      <div class="contribution-details">
+        ${userContributions.map(c => `
+          <div class="contribution-item">
+            <span class="amount">${this.formatPHP(c.amount)}</span>
+            <span class="date">${new Date(c.created_at).toLocaleDateString()}</span>
+          </div>
+        `).join('')}
+        <div class="contribution-total">
+          Total: ${this.formatPHP(userContributions.reduce((sum, c) => sum + parseFloat(c.amount), 0))}
+        </div>
+      </div>
+    `,
+    duration: 5000,
+    dangerouslyUseHTMLString: true
+  });
+},
+
+    updateMemberContributions() {
+  if (!this.members || !this.contributions) {
+    this.memberContributions = [];
+    return;
+  }
+  
+  // Calculate total group expenses
+  const totalExpenses = this.totalAmount;
+  
+  // Calculate equal share for each member
+
+  const sharePerMember = totalExpenses / (this.members.length || 1);
+  //const sharePerMember = this.totalAmount / (this.members.length || 1);
+  // Create member contributions array
+  this.memberContributions = this.members.map(member => {
+    // Calculate total contributed by this member
+    const contributed = this.contributions
+      .filter(c => c.user_id === member.id)
+      .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
+    
+    // Calculate balance (contributed - share)
+    const balance = contributed - sharePerMember;
+    
+    
+    return {
+      id: member.id,
+      username: member.username,
+      contributed,       // Total amount this member has contributed
+      share: sharePerMember,  // Equal share of expenses
+      balance,          // Difference between contributed and share
+      status: balance >= 0 ? 'completed' : 'pending'
+    };
+  });
+  console.log('Updated member contributions:', this.memberContributions);
+},
+  
 
     leaveGroup() {
   this.confirmationTitle = 'Leave Group';
@@ -1019,6 +1118,38 @@ export default {
     this.isEditingBudget = false;
   },
 
+  async updateContribution() {
+    try {
+      const response = await this.$axios.put(
+        `/api/grp_expenses/groups/${this.localGroupId}/contributions/${this.editingContribution.id}`,
+        { amount: this.editingContribution.amount },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        this.showSuccess('Contribution updated successfully!');
+        await this.fetchContributionHistory();
+        await this.fetchContributions();
+        this.showEditContributionModal = false;
+      }
+    } catch (error) {
+      console.error('Failed to update contribution:', error);
+      this.showError(error.response?.data?.message || 'Failed to update contribution');
+    }
+  },
+  
+  cancelEditContribution() {
+    // Restore original amount if exists
+    if (this.editingContribution.originalAmount) {
+      this.editingContribution.amount = this.editingContribution.originalAmount;
+    }
+    this.showEditContributionModal = false;
+  },
+
   async fetchContributionHistory() {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -1053,34 +1184,13 @@ export default {
       
       if (response.data.success) {
         this.contributions = response.data.contributions || [];
+      console.log('Fetched contributions:', this.contributions);
         this.updateMemberContributions();
       }
     } catch (error) {
       console.error('Failed to fetch contributions:', error);
       this.showError('Failed to load contributions');
     }
-  },
-
-  updateMemberContributions() {
-    if (!this.members || !this.contributions) return;
-    
-    this.memberContributions = this.members.map(member => {
-      const contributed = this.contributions
-        .filter(c => c.user_id === member.id)
-        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
-      
-      const share = this.totalAmount / this.members.length;
-      const balance = contributed - share;
-      
-      return {
-        id: member.id,
-        username: member.username,
-        contributed,
-        share,
-        balance,
-        status: balance >= 0 ? 'completed' : 'pending'
-      };
-    });
   },
 
   async saveContribution() {
@@ -1113,11 +1223,15 @@ export default {
       if (response.data.success) {
         this.showSuccess('Contribution saved successfully!');
         this.paidAmountInput = 0;
+
         await Promise.all([
           this.fetchContributions(),
-          this.fetchContributionHistory()
+          this.fetchContributionHistory(),
+          this.fetchGroupData()
         ]);
-      }
+
+      this.$forceUpdate();
+    }
     } catch (error) {
       console.error('Failed to save contribution:', error);
       this.showError(error.response?.data?.message || 'Failed to save contribution');
@@ -1424,12 +1538,18 @@ async updateBudget() {
   try {
     console.log('Fetching group data for groupId:', this.localGroupId);
     await this.fetchGroup(this.localGroupId);
-    console.log('Group data fetched successfully');
+
+    await this.fetchContributions();
     
+    // Update member contributions
+    this.updateMemberContributions();
+
     if (!this.currentGroup?.id) {
       this.$router.replace('/GC');
       return;
     }
+
+   // this.updateMemberContributions();
 
   } catch (err) {
     console.error('Error fetching group:', err, {
@@ -1473,16 +1593,6 @@ async updateBudget() {
     this.expensesLoading = false;
   }
 },
-    
-    formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    },
     
     formatMonthYear(monthYearString) {
       const date = new Date(monthYearString);
@@ -1817,15 +1927,20 @@ async handleUpdateExpense() {
   },
 
   beforeRouteUpdate(to, from, next) {
-    if (!to.params.groupId) {
-      this.$router.replace('/GC');
-      return;
-    }
-    
-    this.localGroupId = to.params.groupId; 
-    this.initializeGroupData()
-      .finally(() => next());
+  if (!to.params.groupId) {
+    this.$router.replace('/GC');
+    return;
   }
+  
+  // Clear existing data
+  this.contributionHistory = [];
+  this.contributions = [];
+  this.memberContributions = [];
+  
+  this.localGroupId = to.params.groupId; 
+  this.initializeGroupData()
+    .finally(() => next());
+}
 }
 };
 </script>
