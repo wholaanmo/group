@@ -75,13 +75,13 @@ exports.getExpensesByMember = async (req, res) => {
       const { item_price, expense_type, item_name } = req.body;
       const { groupId, expenseId } = req.params;
       const userId = req.user.userId;
-      const canEdit = await groupExpenseService.canUserEditExpense(userId, expenseId);
-        if (!canEdit) {
-            return res.status(403).json({
-                success: 0,
-                message: "You don't have permission to edit this expense"
-            });
-        }
+      const expense = await groupExpenseService.getGroupExpenseById(expenseId);
+      if (!expense || expense.user_id !== userId) {
+        return res.status(403).json({
+          success: 0,
+          message: "You don't have permission to edit this expense"
+        });
+      }
 
         const updatedExpense = await groupExpenseService.editGroupExpense({
             id: expenseId,
@@ -110,9 +110,8 @@ exports.deleteGroupExpense = async (req, res) => {
     const { expenseId, groupId } = req.params;
     const userId = req.user.userId;
 
-    // Verify the user has permission to delete this expense
-    const canDelete = await groupExpenseService.canUserEditExpense(userId, expenseId);
-    if (!canDelete) {
+    const expense = await groupExpenseService.getGroupExpenseById(expenseId);
+    if (!expense || expense.user_id !== userId) {
       return res.status(403).json({
         success: 0,
         message: "You don't have permission to delete this expense"
@@ -351,4 +350,5 @@ exports.verifyExpenseOwnership = async (req, res, next) => {
     });
   }
 };
+
 
