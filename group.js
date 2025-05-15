@@ -21,6 +21,9 @@ export default {
     namespaced: true,
     state: getDefaultState(),
     mutations: {
+      SET_CURRENT_GROUP_ID(state, groupId) {
+        state.currentGroupId = groupId;
+      },
       SET_GROUP_BUDGET(state, budget) {
         state.groupBudget = budget || null;
       },
@@ -215,26 +218,24 @@ async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
   }
 },
 
-      async fetchExpenses({ commit }, { groupId, monthYear }) {
-        commit('SET_LOADING', true);
-        commit('SET_ERROR', null);
-        
-        try {
-          const res = await axios.get(`/api/grp_expenses/${groupId}/expenses`, {
-            params: { monthYear },
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-            }
-          });
+async fetchExpenses({ commit }, { groupId, monthYear }) {
+  commit('SET_LOADING', true);
+  commit('SET_ERROR', null);
+  
+  try {
+    const res = await axios.get(`/api/grp_expenses/${groupId}/expenses`, {
+      params: { monthYear },
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      }
+    });
 
-          console.log('API response data:', res.data);
+    const expensesData = res.data.success ? (res.data.data || []) : [];
+    commit('SET_EXPENSES', expensesData);
 
-          const expensesData = res.data.success ? (res.data.data || []) : [];
-          commit('SET_EXPENSES', expensesData);
-
-          if (!res.data.success) {
-            throw new Error(res.data.message || 'Failed to fetch expenses');
-          }
+    if (!res.data.success) {
+      throw new Error(res.data.message || 'Failed to fetch expenses');
+    }
   } catch (err) {
     commit('SET_ERROR', err.response?.data?.message || 'Failed to load expenses');
     throw err;
@@ -434,7 +435,7 @@ async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
           throw err;
         }
       },
-      
+
       async deleteGroup({ commit }, groupId) {
         try {
           const response = await axios.delete(
@@ -462,6 +463,11 @@ async updateGroupBudget({ commit }, { groupId, budgetAmount, budgetName }) {
       }
     },
     getters: {
+      getViewExpenses(state) {
+        if (!state.currentGroupId) return [];
+        return state.expenses.filter(expense => expense.group_id === state.currentGroupId);
+      },
+
       creatorName: (state) => {
         if (!state.currentGroup?.created_by) return '';
         const creator = state.members.find(m => m.id === state.currentGroup.created_by);
