@@ -131,14 +131,20 @@ router.put('/groups/:groupId/members/:memberId/promote',
   }
 );
 
-// Add these new routes to your router file
 router.route('/groups/:groupId/contributions')
   .get(groupAuth('member'), async (req, res) => {
     try {
       const { groupId } = req.params;
       
+      // Validate group exists
+      const [group] = await pool.query('SELECT id FROM groups WHERE id = ?', [groupId]);
+      if (!group.length) {
+        return res.status(404).json({ success: 0, message: 'Group not found' });
+      }
+      
       const [contributions] = await pool.query(
         `SELECT 
+          c.id,
           c.user_id,
           u.username,
           c.amount,
@@ -151,16 +157,10 @@ router.route('/groups/:groupId/contributions')
         [groupId]
       );
 
-      return res.json({
-        success: 1,
-        contributions
-      });
+      return res.json({ success: 1, contributions });
     } catch (err) {
       console.error('Error fetching contributions:', err);
-      return res.status(500).json({
-        success: 0,
-        message: 'Failed to fetch contributions'
-      });
+      return res.status(500).json({ success: 0, message: 'Failed to fetch contributions' });
     }
   })
   .post(groupAuth('member'), async (req, res) => {
@@ -168,53 +168,142 @@ router.route('/groups/:groupId/contributions')
       const { groupId } = req.params;
       const { amount, user_id } = req.body;
 
+      // Validate input
+      if (!amount || isNaN(amount)) {
+        return res.status(400).json({ success: 0, message: 'Invalid amount' });
+      }
+
+      // Validate user exists and is member of group
+      const [membership] = await pool.query(
+        'SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, user_id]
+      );
+      
+      if (!membership.length) {
+        return res.status(403).json({ success: 0, message: 'User is not a member of this group' });
+      }
+
       await pool.query(
         'INSERT INTO contributions (group_id, user_id, amount, status) VALUES (?, ?, ?, ?)',
         [groupId, user_id, amount, 'completed']
       );
 
-      return res.json({
-        success: 1,
-        message: 'Contribution saved successfully'
-      });
+      return res.json({ success: 1, message: 'Contribution saved successfully' });
     } catch (err) {
       console.error('Error saving contribution:', err);
-      return res.status(500).json({
-        success: 0,
-        message: 'Failed to save contribution'
-      });
+      return res.status(500).json({ success: 0, message: 'Failed to save contribution' });
     }
   });
 
-router.get('/groups/:groupId/contribution-history', 
-  groupAuth('member'), 
-  async (req, res) => {
+  router.get('/groups/:groupId/contributions', groupAuth('member'), async (req, res) => {
     try {
       const { groupId } = req.params;
-      const userId = req.user.userId;
+      
+      // Verify group exists
+      const [group] = await pool.query('SELECT id FROM groups WHERE id = ?', [groupId]);
+      if (!group.length) {
+        return res.status(404).json({ success: 0, message: 'Group not found' });
+      }
+  
+      const [contributions] = await pool.query(
+        `SELECT 
+          c.id,
+          c.user_id,
+          u.username,
+          c.amount,
+          DATE_FORMAT(c.created_at, '%Y-%m-%d') as date,
+          c.status
+         FROM contributions c
+         JOIN users u ON c.user_id = u.id
+         WHERE c.group_id = ?
+         ORDER BY c.created_at DESC`,
+        [groupId]
+      );
+  
+      return res.json({ success: 1, contributions });
+    } catch (err) {
+      console.error('Error fetching contributions:', err);
+      return res.status(500).json({ success: 0, message: 'Failed to fetch contributions' });
+    }
+  });
+
+  router.get('/groups/:groupId/contribution-history', groupAuth('member'), async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      const { user_id } = req.query;
+
+      if (!user_id) {
+        return res.status(400).json({ success: 0, message: 'User ID is required' });
+      }
+
+      const [membership] = await pool.query(
+        'SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, user_id]
+      );
+      
+      if (!membership.length) {
+        return res.status(403).json({ success: 0, message: 'User is not a member of this group' });
+      }
 
       const [history] = await pool.query(
         `SELECT 
           amount, 
-          created_at as date, 
+          DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as date,
           status 
-         FROM contribution_history 
+         FROM contributions 
          WHERE group_id = ? AND user_id = ?
          ORDER BY created_at DESC`,
-        [groupId, userId]
+        [groupId, user_id]
       );
 
-      return res.json({
-        success: 1,
-        history
-      });
-    } catch (err) {
-      console.error('Error fetching contribution history:', err);
-      return res.status(500).json({
-        success: 0,
-        message: 'Failed to fetch contribution history'
-      });
-    }
+    return res.json({ success: 1, history });
+  } catch (err) {
+    console.error('Error fetching contribution history:', err);
+    return res.status(500).json({ success: 0, message: 'Failed to fetch contribution history' });
   }
-);
+});
+
+router.post('/groups/:groupId/contributions', groupAuth('member'), async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { amount, user_id } = req.body;
+
+    // Validate input
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ success: 0, message: 'Invalid amount' });
+    }
+
+    // Validate user exists and is member of group
+    const [membership] = await pool.query(
+      'SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?',
+      [groupId, user_id]
+    );
+    
+    if (!membership.length) {
+      return res.status(403).json({ success: 0, message: 'User is not a member of this group' });
+    }
+
+    // Start transaction
+    await pool.query('START TRANSACTION');
+
+    // Insert contribution
+    const [result] = await pool.query(
+      'INSERT INTO contributions (group_id, user_id, amount, status) VALUES (?, ?, ?, ?)',
+      [groupId, user_id, amount, 'completed']
+    );
+
+    await pool.query('COMMIT');
+
+    return res.json({ 
+      success: 1, 
+      message: 'Contribution added successfully',
+      contributionId: result.insertId 
+    });
+  } catch (err) {
+    // Rollback on error
+    await pool.query('ROLLBACK');
+    console.error('Error adding contribution:', err);
+    return res.status(500).json({ success: 0, message: 'Failed to add contribution' });
+  }
+});
 module.exports = router;
