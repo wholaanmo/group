@@ -166,9 +166,9 @@
             </div>
 
             <div class="form-group">
-      <label>Amount (₱)</label>
-      <input v-model="budgetAmountInput" type="number" min="0" step="0.01" @input="formatCurrencyInput">
-    </div>
+              <label>Amount (₱)</label>
+              <input v-model="budgetAmountInput" type="number" min="0" step="0.01" @input="formatCurrencyInput">
+            </div>
 
             <div class="form-actions">
               <button @click="isEditingBudget ? updateBudget() : submitAddBudget()" class="btn-save">
@@ -208,7 +208,7 @@
         <div v-if="activeTab === 'expenses'" class="expenses-tab">
           <div class="expense-controls">
             <button @click="showAddExpenseModal = true" class="add-expense-button">
-              <i class="fas fa-plus"></i> Add Expense
+              <i class="fas fa-plus"></i> Add <br> Expense
             </button>
           </div>
 
@@ -232,7 +232,7 @@
                   
       <div v-else class="expenses-container">
         <div class="expenses-section"> 
-          <h3><i class="fas fa-coins"></i> <span>YOUR EXPENSES</span></h3> 
+          <h3><i class="fas fa-coins"></i> <span>YOUR <br> EXPENSES</span></h3> 
           <div class="expenses-table"> 
             <table>
               <thead>
@@ -405,11 +405,14 @@
             <div class="form-group">
               <label>Category</label>
               <select v-model="newExpense.expense_type" required>
+                <option value="">Select a category</option> 
                 <option value="Food">Food</option>
+                <option value="Bill">Bill</option>
                 <option value="Transportation">Transportation</option>
                 <option value="Entertainment">Entertainment</option>
-                <option value="Utilities">Utilities</option>
-                <option value="Other">Other</option>
+                <option value="Accomodation">Accomodation</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Other">Others</option>
               </select>
             </div>
             <div class="form-group">
@@ -456,10 +459,13 @@
               <label>Category</label>
               <select v-model="editingExpense.expense_type" required>
                 <option value="Food">Food</option>
+                <option value="Entertainment">Accomodation</option>
                 <option value="Transportation">Transportation</option>
+                <option value="Entertainment">Bills</option>
+                <option value="Entertainment">Shopping</option>
                 <option value="Entertainment">Entertainment</option>
-                <option value="Utilities">Utilities</option>
-                <option value="Other">Other</option>
+                <option value="Utilities">Essentials</option>
+                <option value="Other">Others</option>
               </select>
             </div>
             <div class="form-group">
@@ -1627,9 +1633,9 @@ async handleUpdateExpense() {
   color: #6c757d;
   font-size: 0.9rem;
   line-height: 1.4;
-  margin-bottom: 0;
+  margin-bottom: 10;
   text-align: center;
-  max-width: 320px;
+  max-width: 350px;
 }
 
 .fa-sign-out-alt,
@@ -2123,12 +2129,14 @@ h2 {
   font-weight: 600;
   color: #2a4935;
   background: linear-gradient(90deg, #d0ebdd, #f0f7f3);
-  padding: 12px 300px;
+  padding: 25px 0px 25px 0px;
   border-radius: 12px;
   animation: fadeSlideIn 0.6s ease-out;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   text-transform: uppercase;
   letter-spacing: 1px;
+  margin-bottom: 0px;
+  width: 100%;
 }
 
 .expenses-table table {
@@ -2613,8 +2621,6 @@ tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  margin-bottom: 25px;
   flex-wrap: wrap;
   gap: 10px;
 }
@@ -2623,7 +2629,7 @@ tr:hover {
   background-color: #2a4935;
   color: white;
   border: none;
-  padding: 12px 365px;
+  padding: 20px 20px;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -2635,7 +2641,7 @@ tr:hover {
   font-weight: 600;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   margin: 0 auto; /* This centers the button */
-  min-width: 180px;
+  width: 100%;
 }
 
 .add-expense-button:hover {
@@ -3227,6 +3233,13 @@ button.cancel-button{
   margin-top: 10px;
 }
 
+@media (max-width: 1050px) {
+  .expenses-section h3{
+  padding: 25px 0px 25px 0px;
+  width: 650px;
+  }
+}
+
 @media (max-width: 760px) {
   .group-con {
     flex-wrap: wrap;
@@ -3237,6 +3250,10 @@ button.cancel-button{
   }
   .group-wrapper{
     width: 100%;
+  }
+  .member-item {
+  display: flex;
+  flex-wrap: wrap;
   }
 }
 </style>
