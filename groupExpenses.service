@@ -202,22 +202,11 @@ isGroupAdmin: async (userId, groupId) => {
       
       // Get the expense first
       const [expense] = await connection.query(
-        'SELECT user_id, group_id FROM group_expenses WHERE id = ?',
+        'SELECT user_id FROM group_expenses WHERE id = ?',
         [expenseId]
       );
-      
-      if (!expense.length) return false;
-      
-      // Check if creator
-      if (expense[0].user_id === userId) return true;
-      
-      // Check if admin
-      const [membership] = await connection.query(
-        'SELECT role FROM group_members WHERE user_id = ? AND group_id = ?',
-        [userId, expense[0].group_id]
-      );
-      
-      return membership.length > 0 && membership[0].role === 'admin';
+  
+      return expense.length > 0 && expense[0].user_id === userId;
     } catch (err) {
       console.error('Check edit permission error:', err);
       throw err;
