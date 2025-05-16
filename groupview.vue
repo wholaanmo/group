@@ -137,40 +137,7 @@
           <div class="total-amount">
             <p>Total: {{ formatCurrency(totalAmount) }} ({{ formatUsd(totalAmount) }})</p>
           </div>
-          <div class="contribution-section" v-if="memberContributions.length > 0">
-    <h3>Expense Sharing</h3>
-    <div class="member-contributions-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Member</th>
-            <th>Contributed</th>
-            <th>Share</th>
-            <th>Balance</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="member in memberContributions" :key="member.id">
-            <td>{{ member.username }}</td>
-            <td>{{ formatCurrency(member.contributed) }}</td>
-            <td>{{ formatCurrency(member.share) }}</td>
-            <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
-              {{ formatCurrency(Math.abs(member.balance)) }}
-              <span v-if="member.balance < 0">(Owes)</span>
-              <span v-else>(Owed)</span>
-            </td>
-            <td>
-              <span :class="['status-badge', member.status]">
-                {{ member.status }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+          </div>
   </div>
 </div>
 
@@ -212,6 +179,41 @@
     <div class="percentage">{{ budgetPercentage.toFixed(0) }}%</div>
   </div>
   </div>
+  <div class="contribution-section">
+    <h3><i class="fas fa-hand-holding-usd"></i> Group Contributions</h3>
+          <div class="member-contributions-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Contributed</th>
+                  <th>Share</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="member in memberContributions" :key="member.id">
+  <td>{{ member.username }}</td>
+  <td>{{ formatPHP(member.contributed) }}</td>
+  <td>{{ formatPHP(member.share) }}</td>
+  <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+    {{ formatPHP(Math.abs(member.balance)) }}
+    <span v-if="member.balance < 0">(Owes)</span>
+    <span v-else>(Owed)</span>
+  </td>
+  <td>
+    <span :class="['status-badge', member.status]">
+      {{ member.status }}
+      <span v-if="member.status === 'pending'" class="text-danger"> 
+      </span>
+    </span>
+  </td>
+</tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
   <div v-if="isBudgetExceeded" class="exceeded-warning">
     ⚠️ {{ currentBudget.budget_name }} exceeded by {{ formatCurrency(exceededAmount) }}
 </div>
@@ -442,7 +444,7 @@ export default {
   try {
     const groupId = this.$store.state.group.currentGroup.id;
     
-    // Fetch contributions
+    // Fetch all contributions (both completed and pending)
     const contributionsRes = await this.$axios.get(
       `/api/grp_expenses/groups/${groupId}/contributions`, 
       {
@@ -461,19 +463,31 @@ export default {
     
     // Calculate each member's contribution and balance
     this.memberContributions = this.groupMembers.map(member => {
-      const memberContributed = contributions
+      // Calculate completed contributions
+      const completedContributions = contributions
         .filter(c => c.user_id === member.id && c.status === 'completed')
         .reduce((sum, c) => sum + parseFloat(c.amount), 0);
-        
-      const balance = memberContributed - equalShare;
+      
+      const pendingContributions = contributions
+        .filter(c => c.user_id === member.id && c.status === 'pending')
+        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
+
+      const totalContributed = completedContributions + pendingContributions;
+     
+      const balance = totalContributed - equalShare;
+      
+     
+      const status = completedContributions >= equalShare ? 'completed' : 'pending';
       
       return {
         id: member.id,
         username: member.username,
-        contributed: memberContributed,
+        contributed: totalContributed, 
         share: equalShare,
         balance: balance,
-        status: balance >= 0 ? 'completed' : 'pending'
+        status: status,
+        pendingAmount: pendingContributions,
+        completedAmount: completedContributions
       };
     });
     
@@ -700,57 +714,114 @@ export default {
 
 <style scoped>
 .contribution-section {
-  margin-top: 30px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  padding: 20px;
+  width: calc(100% - 80px);
+  margin: 10px auto 20px auto;
+  height: 250px;
+  padding: 10px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: linear-gradient(145deg, #f9fbfa, #e8f0ed);
+  border-radius: 18px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
+.contribution-section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+/* Optional title */
+.contribution-section h3 {
+  margin: 0 0 14px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #244b3c;
+  text-align: center;
+}
+
+/* Table wrapper */
 .member-contributions-table {
+  width: 100%;
   overflow-x: auto;
+  margin-top: 10px;
 }
 
+/* Table style */
 .member-contributions-table table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 4px;
 }
 
+/* Header cells */
 .member-contributions-table th {
-  background-color: #f8f9fa;
-  padding: 12px 15px;
-  text-align: left;
-  font-weight: 600;
+  background-color: #dff0ea;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #2e4d3b;
+  text-align: center;
+  padding: 10px 12px;
+  border-bottom: 2px solid #bfded6;
+  border-radius: 8px;
 }
 
+/* Data cells */
 .member-contributions-table td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
+  background: #ffffff;
+  color: #374151;
+  text-align: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
 }
 
-.text-danger {
-  color: #dc3545;
+/* Zebra striping */
+.member-contributions-table tr:nth-child(odd) td {
+  background: #f3f7f6;
 }
 
-.text-success {
-  color: #28a745;
+/* Hover row */
+.member-contributions-table tr:hover td {
+  background: #e4f3ef;
 }
+
 
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .status-badge.completed {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: #d1fae5;
+  color: #065f46;
 }
 
 .status-badge.pending {
-  background-color: #fff3cd;
-  color: #856404;
-} /*newwww*/
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* Utility text colors */
+.text-danger {
+  color: #dc2626 !important;
+  font-weight: 600;
+  font-size: 1rem !important;
+}
+
+.text-success {
+  color: #16a34a !important;
+  font-weight: 600;
+}
+
+/*newwww*/
 .member-filter {
   position: relative;
   display: inline-block;
@@ -1307,16 +1378,21 @@ button:hover {
   font-weight: bold;
 }
 
+.chart-summary {
+  max-height: 650px;
+}
+
 .chart{
   width: 380px;
   padding: 20px;
   box-sizing: border-box;
   background: #ecfcec;
   border-radius: 20px;
-  max-height: 600px;
+  max-height:600px;
   border: 2px solid #336333;
   margin-bottom: 10px;
 }
+
 .download {
   display: flex;
   flex-wrap: wrap;
