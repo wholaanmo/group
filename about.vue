@@ -116,7 +116,7 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
-  background-color: #fcffed;
+  background-color: #FFFDF6;
   overflow-x: hidden;
   overflow-y: auto;
 }
