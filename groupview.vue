@@ -174,13 +174,20 @@
     </div>
 
     <div class="progress-bar">
-      <div class="progress" :style="{ width: budgetPercentage + '%' }"></div>
-    </div>
-    <div class="percentage">{{ budgetPercentage.toFixed(0) }}%</div>
+      <div class="progress" 
+         :class="{ 'exceeded': isBudgetExceeded }"
+         :style="{ width: budgetPercentage + '%' }"></div>
+  </div>
+  <div class="percentage" :class="{ 'exceeded': isBudgetExceeded }">
+    {{ budgetPercentage.toFixed(0) }}%
+  </div>
   </div>
   </div>
   <div class="contribution-section">
-    <h3><i class="fas fa-hand-holding-usd"></i> Group Contributions</h3>
+    <h3>
+    <i class="fas fa-hand-holding-usd"></i> 
+    {{ filterCategory === 'All' ? 'All Categories' : filterCategory }} Contributions
+  </h3>
           <div class="member-contributions-table">
             <table>
               <thead>
@@ -301,6 +308,39 @@ export default {
   computed: {
     ...mapGetters('group', ['getViewExpenses']),
     
+    contributionsByCategory() {
+    if (!this.memberContributions.length || !this.expenses.length) return {};
+    
+    const categories = [...new Set(this.expenses.map(e => e.category))];
+    const result = {};
+    
+    categories.forEach(category => {
+      // Calculate total expenses for this category
+      const categoryExpenses = this.expenses
+        .filter(e => e.category === category)
+        .reduce((sum, e) => sum + e.amount, 0);
+      
+      const memberCount = this.groupMembers.length || 1;
+      const sharePerMember = categoryExpenses / memberCount;
+      
+      result[category] = this.memberContributions.map(member => {
+        // Calculate contributions for this category (simple proportional split)
+        const contributed = (member.contributed / this.totalAmount) * categoryExpenses;
+        const balance = contributed - sharePerMember;
+        
+        return {
+          username: member.username,
+          contributed: contributed,
+          share: sharePerMember,
+          balance: balance,
+          status: balance >= 0 ? 'completed' : 'pending'
+        };
+      });
+    });
+    
+    return result;
+  },
+
     isBudgetExceeded() {
     return this.currentBudget && this.totalAmount > this.currentBudget.budget_amount;
   },
@@ -321,7 +361,9 @@ export default {
   
   budgetPercentage() {
     if (!this.currentBudget || this.currentBudget.budget_amount <= 0) return 0;
-    return (this.totalAmount / this.currentBudget.budget_amount) * 100;
+    
+    const percentage = Math.min((this.totalAmount / this.currentBudget.budget_amount) * 100, 100);
+    return percentage;
   },
   
     
@@ -407,17 +449,30 @@ export default {
   },
 
   watch: {
-  expenses: {
+    expenses: {
     handler() {
-      this.calculateMemberContributions();
+      if (this.filterCategory === 'All') {
+        this.calculateMemberContributions();
+      } else {
+        this.updateContributionsByCategory();
+      }
     },
     deep: true
   },
   groupMembers: {
     handler() {
-      this.calculateMemberContributions();
+      if (this.filterCategory === 'All') {
+        this.calculateMemberContributions();
+      } else {
+        this.updateContributionsByCategory();
+      }
     },
     deep: true
+  },
+  filterCategory: {
+    handler(newVal) {
+      this.updateContributionsByCategory();
+    }
   }
 },
 
@@ -504,9 +559,21 @@ export default {
       return `$${usdAmount.toFixed(2)}`;
     },
 
-    filterExpenses(category) {
-      this.filterCategory = category;
-    },
+  filterExpenses(category) {
+    this.filterCategory = category;
+    this.updateContributionsByCategory();
+  },
+
+  updateContributionsByCategory() {
+    if (this.filterCategory === 'All') {
+      // Use the normal calculation when viewing all categories
+      this.calculateMemberContributions();
+    } else {
+      // For specific categories, use the category-specific calculation
+      const categoryData = this.contributionsByCategory[this.filterCategory] || [];
+      this.memberContributions = categoryData;
+    }
+  },
 
     formatCurrency(value) {
       if (value == null || isNaN(value)) return '₱0.00';
@@ -652,63 +719,190 @@ export default {
     },
 
     async generatePDF() {
-      try {
-        const doc = new jsPDF();
-        
-        // Title 
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Expense Report', 105, 20, { align: 'center' });
-        
-        doc.setFontSize(12);
-        let filterText = this.filterCategory === 'All' ? 'All Categories' : this.filterCategory;
-        doc.text(`Filter: ${filterText}`, 105, 30, { align: 'center' });
-        
-        // Summary
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Total Expenses: ${this.formatCurrency(this.totalAmount)}`, 105, 45, { align: 'center' });
-        
-        // Prepare table data
-        const tableData = this.filteredExpenses.map(expense => [
-          expense.date,
-          expense.category,
-          expense.name,
-          this.formatCurrency(expense.amount)
-        ]);
-        
-        // Add expense table
-        autoTable(doc, {
-          head: [['Date', 'Category', 'Description', 'Amount']],
-          body: tableData,
-          startY: 60, 
-          margin: { left: 10, right: 10 },
-          styles: {
-            cellPadding: 4, 
-            fontSize: 9,
-            halign: 'left',
-            valign: 'middle',
-            overflow: 'linebreak'
-          },
-          columnStyles: {
-            0: { cellWidth: 25 }, // Date
-            1: { cellWidth: 25 }, // Category
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 25 } // Amount
-          },
-          headStyles: {
-            fillColor: [76, 175, 80],
-            textColor: 255,
-            fontStyle: 'bold'
-          }
-        });
-        
-        doc.save('expense-report.pdf');
-      } catch (error) {
-        console.error('Error generating PDF:', error);
+  try {
+    const doc = new jsPDF();
+    
+    // Title 
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Expense Report', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    let filterText = this.filterCategory === 'All' ? 'All Categories' : this.filterCategory;
+    doc.text(`Filter: ${filterText}`, 105, 30, { align: 'center' });
+    
+    // Budget Summary Section
+    doc.setFontSize(14);
+    doc.text('Budget Summary', 14, 45);
+    
+    // Budget Summary Table
+    autoTable(doc, {
+      startY: 50,
+      head: [['Metric', 'Amount']],
+      body: [
+        ['Total Budget', this.formatCurrency(this.currentBudget?.budget_amount || 0)],
+        ['Total Expenses', this.formatCurrency(this.totalAmount)],
+        ['Remaining Budget', this.formatCurrency(this.remainingBudget)],
+        ['Budget Utilization', `${this.budgetPercentage.toFixed(0)}%`]
+      ],
+      margin: { left: 10, right: 10 },
+      styles: {
+        cellPadding: 4,
+        fontSize: 10,
+        halign: 'left',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { cellWidth: 60, fontStyle: 'bold' },
+        1: { cellWidth: 40 }
+      },
+      headStyles: {
+        fillColor: [76, 175, 80],
+        textColor: 255,
+        fontStyle: 'bold'
       }
+    });
+    
+    // Expense Categories Chart (as a table since we can't embed charts in PDF easily)
+    doc.setFontSize(14);
+    doc.text('Expense Categories Breakdown', 14, doc.lastAutoTable.finalY + 15);
+    
+    const categoryData = Object.entries(this.chartData.labels.reduce((acc, label, index) => {
+      acc[label] = this.chartData.datasets[0].data[index];
+      return acc;
+    }, {}));
+    
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [['Category', 'Amount', 'Percentage']],
+      body: categoryData.map(([category, amount]) => [
+        category,
+        this.formatCurrency(amount),
+        `${((amount / this.totalAmount) * 100).toFixed(1)}%`
+      ]),
+      margin: { left: 10, right: 10 },
+      styles: {
+        cellPadding: 4,
+        fontSize: 10,
+        halign: 'left',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { cellWidth: 50 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 30 }
+      },
+      headStyles: {
+        fillColor: [76, 175, 80],
+        textColor: 255,
+        fontStyle: 'bold'
+      }
+    });
+    
+    // Member Contributions Section
+    doc.setFontSize(14);
+    doc.text('Member Contributions', 14, doc.lastAutoTable.finalY + 15);
+    
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [['Member', 'Contributed', 'Share', 'Balance', 'Status']],
+      body: this.memberContributions.map(member => [
+        member.username,
+        this.formatCurrency(member.contributed),
+        this.formatCurrency(member.share),
+        `${this.formatCurrency(Math.abs(member.balance))} ${member.balance < 0 ? '(Owes)' : '(Owed)'}`,
+        member.status
+      ]),
+      margin: { left: 10, right: 10 },
+      styles: {
+        cellPadding: 4,
+        fontSize: 9,
+        halign: 'left',
+        valign: 'middle',
+        overflow: 'linebreak'
+      },
+      columnStyles: {
+        0: { cellWidth: 30 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 20 }
+      },
+      headStyles: {
+        fillColor: [76, 175, 80],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        textColor: [0, 0, 0],
+        // Color coding for balances
+        didDrawCell: (data) => {
+          if (data.column.index === 3) { // Balance column
+            const cellValue = data.cell.raw;
+            const owes = cellValue.includes('(Owes)');
+            doc.setTextColor(owes ? 255 : 0, owes ? 0 : 128, 0);
+          }
+        }
+      }
+    });
+    
+    // Expenses Table
+    doc.setFontSize(14);
+    doc.text('Expense Details', 14, doc.lastAutoTable.finalY + 15);
+    
+    const tableData = this.filteredExpenses.map(expense => [
+      expense.date,
+      expense.category,
+      expense.name,
+      this.formatCurrency(expense.amount),
+      expense.username
+    ]);
+    
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [['Date', 'Category', 'Description', 'Amount', 'Added By']],
+      body: tableData,
+      margin: { left: 10, right: 10 },
+      styles: {
+        cellPadding: 4,
+        fontSize: 9,
+        halign: 'left',
+        valign: 'middle',
+        overflow: 'linebreak'
+      },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 20 }
+      },
+      headStyles: {
+        fillColor: [76, 175, 80],
+        textColor: 255,
+        fontStyle: 'bold'
+      }
+    });
+    
+    // Add page numbers
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
     }
+    
+    doc.save('expense-report.pdf');
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    this.$notify({
+      title: 'Error',
+      message: 'Failed to generate PDF report',
+      type: 'error'
+    });
   }
+}
+  }  
 };
 </script>
 
@@ -1212,8 +1406,12 @@ export default {
   transition: width 0.3s ease;
 }
 
+.progress-bar .progress.exceeded {
+  background: #bb2318 !important;
+}
+
 .progress-bar .progress {
-  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  background: linear-gradient(135deg, #7aa98c, #5e8873, #486858);
 }
 
 .percentage {
