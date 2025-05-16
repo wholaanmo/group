@@ -2694,7 +2694,7 @@ async handleUpdateExpense() {
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
   color: white;
   min-height: 250px;
-  max-height: 500px;
+  max-height: 600px;
   margin-bottom: 10px;
 }
 
@@ -2712,7 +2712,6 @@ async handleUpdateExpense() {
   color: #2a4935;
   margin: 0;
 }
-
 .btn-add, .btn-edit {
   background: #2a4935;
   color: white;
@@ -2763,6 +2762,7 @@ async handleUpdateExpense() {
 .budget-name,
 .budget-amount {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   font-size: 1rem;
@@ -2785,7 +2785,6 @@ async handleUpdateExpense() {
   border-radius: 12px;
   padding: 12px 16px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  width: 88%;
   margin-top: 12px;
   display: flex;
   flex-direction: column;
@@ -2795,6 +2794,8 @@ async handleUpdateExpense() {
 .total-expenses,
 .remaining-budget {
   display: flex;
+  flex-wrap: wrap;
+  width: 100%;
   justify-content: space-between;
   align-items: center;
   font-size: 1.1rem;
