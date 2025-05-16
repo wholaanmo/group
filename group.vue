@@ -464,20 +464,22 @@
               </thead>
               <tbody>
                 <tr v-for="member in memberContributions" :key="member.id">
-        <td>{{ member.username }}</td>
-        <td>{{ formatPHP(member.contributed) }}</td>
-        <td>{{ formatPHP(member.share) }}</td>
-        <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
-          {{ formatPHP(Math.abs(member.balance)) }}
-          <span v-if="member.balance < 0">(Owes)</span>
-          <span v-else>(Owed)</span>
-        </td>
-        <td>
-          <span :class="['status-badge', member.status]">
-            {{ member.status }}
-          </span>
-                  </td>
-                </tr>
+  <td>{{ member.username }}</td>
+  <td>{{ formatPHP(member.contributed) }}</td>
+  <td>{{ formatPHP(member.share) }}</td>
+  <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+    {{ formatPHP(Math.abs(member.balance)) }}
+    <span v-if="member.balance < 0">(Owes)</span>
+    <span v-else>(Owed)</span>
+  </td>
+  <td>
+    <span :class="['status-badge', member.status]">
+      {{ member.status }}
+      <span v-if="member.status === 'pending'" class="text-danger"> 
+      </span>
+    </span>
+  </td>
+</tr>
               </tbody>
             </table>
           </div>
@@ -876,6 +878,18 @@ export default {
       this.updateMemberContributions();
     }
   },
+  'expenses': {
+    deep: true,
+    handler() {
+      this.updateMemberContributions();
+    }
+  },
+  'filteredExpenses': {
+    deep: true,
+    handler() {
+      this.updateMemberContributions();
+    }
+  },
 
     budgetSuccessMessage(newVal) {
     if (newVal) {
@@ -1017,42 +1031,50 @@ export default {
   });
 },
 
-    updateMemberContributions() {
+async updateMemberContributions() {
   if (!this.members || !this.contributions) {
     this.memberContributions = [];
     return;
   }
   
-  // Calculate total group expenses
   const totalExpenses = this.totalAmount;
-  
-  // Calculate equal share for each member
-
   const sharePerMember = totalExpenses / (this.members.length || 1);
-  //const sharePerMember = this.totalAmount / (this.members.length || 1);
-  // Create member contributions array
+  
   this.memberContributions = this.members.map(member => {
-    // Calculate total contributed by this member
-    const contributed = this.contributions
-      .filter(c => c.user_id === member.id)
-      .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
-    
-    // Calculate balance (contributed - share)
+    const userContributions = this.contributions.filter(c => c.user_id === member.id);
+    const contributed = userContributions.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
     const balance = contributed - sharePerMember;
-    
-    
+    const newStatus = balance >= 0 ? 'completed' : 'pending';
+
+    // Update backend if status changed
+    userContributions.forEach(async (contribution) => {
+      if (contribution.status !== newStatus) {
+        try {
+          await this.$axios.put(
+            `/api/grp_expenses/groups/${this.localGroupId}/contributions/${contribution.id}/status`,
+            { status: newStatus },
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+              }
+            }
+          );
+        } catch (error) {
+          console.error('Failed to update contribution status:', error);
+        }
+      }
+    });
+
     return {
       id: member.id,
       username: member.username,
-      contributed,       // Total amount this member has contributed
-      share: sharePerMember,  // Equal share of expenses
-      balance,          // Difference between contributed and share
-      status: balance >= 0 ? 'completed' : 'pending'
+      contributed,
+      share: sharePerMember,
+      balance,
+      status: newStatus
     };
   });
-  console.log('Updated member contributions:', this.memberContributions);
 },
-  
 
     leaveGroup() {
   this.confirmationTitle = 'Leave Group';
@@ -2208,10 +2230,11 @@ async handleUpdateExpense() {
 
 .contribution-form {
   background: #fff;
-  padding: 20px;
-  border-radius: 8px;
+  padding: 100px;
+  border-radius: 20;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   margin-bottom: 20px;
+  border: 2px solid #021526;
 }
 
 .contribution-form .form-group {
@@ -2831,7 +2854,7 @@ async handleUpdateExpense() {
 }
 
 .progress-fill.exceeded {
-  background-color: #f44336;
+  background: #f44336 !important;
 }
 
 .progress-text {
@@ -3009,21 +3032,22 @@ h2 {
   margin-bottom: 30px;
 }
 
-.expenses-section h3 {
-  display: inline-block;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #2a4935;
-  background: linear-gradient(90deg, #d0ebdd, #f0f7f3);
-  padding: 25px 0px 25px 0px;
-  border-radius: 12px;
-  animation: fadeSlideIn 0.6s ease-out;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 0px;
-  width: 100%;
-}
+.expenses-container h3 {
+    display: inline-block;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2a4935;
+    background: linear-gradient(90deg, #d0ebdd, #f0f7f3);
+    padding: 25px 0px 25px 0px;
+    border-radius: 12px;
+    animation: fadeSlideIn 0.6s ease-out;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 1px;
+    margin-bottom: 0px;
+    width: 100%;
+  }
 
 .expenses-table table {
   width: 100%;
@@ -3769,59 +3793,78 @@ Z
 .invite-section {
   margin-top: 30px;
   padding: 25px 20px;
-  background: linear-gradient(135deg, #f0fdf4, #e8f5e9);
+  background: linear-gradient(135deg, #e6f9ee, #d0f0dd); /* slightly richer gradient */
   border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
-  border-left: 4px solid #2a4935;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-left: 5px solid #2a4935;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.invite-section::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgba(42, 73, 53, 0.05), transparent 60%);
+  z-index: 0;
 }
 
 .invite-section:hover {
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
 }
 
 .invite-section h4 {
   margin: 0 0 10px 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #2a4935;
+  color: #588668;
+  position: relative;
+  z-index: 1;
 }
 
 .invite-form {
   display: flex;
   gap: 12px;
   margin-top: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .email-input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #cfd8dc;
+  border: 1px solid #b0c4b1;
   border-radius: 8px;
   font-size: 0.95rem;
   outline: none;
-  transition: border 0.3s ease;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+  background-color: #f8fdf9;
 }
 
 .email-input:focus {
   border-color: #2a4935;
-  box-shadow: 0 0 0 2px rgba(42, 73, 53, 0.1);
+  box-shadow: 0 0 0 3px rgba(42, 73, 53, 0.12);
 }
 
 .invite-button {
-  background-color: #2a4935;
+  background: linear-gradient(135deg, #2a4935, #1f3627);
   color: white;
   border: none;
   padding: 10px 18px;
   border-radius: 8px;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: background 0.3s ease, transform 0.2s ease;
 }
 
 .invite-button:hover {
-  background-color: #1f3627;
+  background: linear-gradient(135deg, #1f3627, #16271c);
+  transform: scale(1.03);
 }
 
 .summary-grid {
@@ -4264,5 +4307,9 @@ button.cancel-button{
   display: flex;
   flex-wrap: wrap;
   }
+  .contribution-form {
+      max-width: 700px;
+      margin-bottom: 0;
+    }
 }
 </style>
