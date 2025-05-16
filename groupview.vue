@@ -3,7 +3,7 @@
 
   <div class="con">
     <div class="nav-con">
-      <h1>Group Expenses</h1>
+      <h1><i class="fa fa-coins"></i>  Group Expenses</h1>
     </div>
 
     <button @click="showGroupModal = true" class="show-groups-button">
@@ -38,7 +38,7 @@
             </button>
           </div>
           
-          <div v-else class="groups-list">
+    <div v-else class="groups-list">
   <div 
     v-for="group in userGroups" 
     :key="group.id" 
@@ -61,17 +61,36 @@
       </div>
     </div>
 
+    
     <div class="con-container">
-
+      <div v-if="$store.state.group.currentGroup" class="current-group">
+  <div class="group-line">
+    <i class="fas fa-user-friends"></i>
+    <h3>{{ $store.state.group.currentGroup.group_name }}</h3>
+  </div>
+  <div class="group-line">
+    <i class="fas fa-key"></i>
+    <p>Code: {{ $store.state.group.currentGroup.group_code }}</p>
+  </div>
+</div>
       <div v-if="currentView === 'view'" class="budget-section">
         <div class="content-wrapper">
           <!-- Filter Buttons -->
           <div class="filter-buttons">
+            <div class="member-filter">
+    <select v-model="selectedMember" @change="filterByMember" :disabled="memberFilterLoading">
+      <option value="all">All Members</option>
+      <option v-for="member in groupMembers" :key="member.id" :value="member.id">
+        {{ member.username }}
+      </option>
+    </select>
+    <div v-if="memberFilterLoading" class="small-spinner"></div>
+  </div>
             <button @click="filterExpenses('Food')" :class="{ active: filterCategory === 'Food' }">Food</button>
             <button @click="filterExpenses('Bill')" :class="{ active: filterCategory === 'Bill' }">Bill</button>
             <button @click="filterExpenses('Transportation')" :class="{ active: filterCategory === 'Transportation' }">Transportation</button>
             <button @click="filterExpenses('Entertainment')" :class="{ active: filterCategory === 'Entertainment' }">Entertainment</button>
-            <button @click="filterExpenses('Healthcare')" :class="{ active: filterCategory === 'Healthcare' }">Healthcare</button>
+            <button @click="filterExpenses('Accomodation')" :class="{ active: filterCategory === 'Accomodation' }">Accomodation</button>
             <button @click="filterExpenses('Shopping')" :class="{ active: filterCategory === 'Shopping' }">Shopping</button>
             <button @click="filterExpenses('Other')" :class="{ active: filterCategory === 'Other' }">Other</button>
             <button @click="filterExpenses('All')" :class="{ active: filterCategory === 'All' }">View All</button>
@@ -88,12 +107,13 @@
                   <th>Category</th>
                   <th>Name</th>
                   <th>Amount</th>
+                  <th>Added By</th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="filteredExpenses.length === 0">
-                  <td colspan="4" class="no-expenses-message">
+                  <td colspan="5" class="no-expenses-message">
                     NO EXPENSES
                   </td>
                 </tr>
@@ -106,6 +126,7 @@
                   <td>{{ expense.category }}</td>
                   <td>{{ expense.name }}</td>
                   <td>{{ formatCurrency(expense.amount) }}</td>
+                  <td>{{ expense.username }}</td>
                   <td>{{ expense.date }}</td>
                 </tr>
               </tbody>
@@ -116,15 +137,48 @@
           <div class="total-amount">
             <p>Total: {{ formatCurrency(totalAmount) }} ({{ formatUsd(totalAmount) }})</p>
           </div>
-        </div>
-      </div>
+          <div class="contribution-section" v-if="memberContributions.length > 0">
+    <h3>Expense Sharing</h3>
+    <div class="member-contributions-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Contributed</th>
+            <th>Share</th>
+            <th>Balance</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="member in memberContributions" :key="member.id">
+            <td>{{ member.username }}</td>
+            <td>{{ formatCurrency(member.contributed) }}</td>
+            <td>{{ formatCurrency(member.share) }}</td>
+            <td :class="{ 'text-danger': member.balance < 0, 'text-success': member.balance >= 0 }">
+              {{ formatCurrency(Math.abs(member.balance)) }}
+              <span v-if="member.balance < 0">(Owes)</span>
+              <span v-else>(Owed)</span>
+            </td>
+            <td>
+              <span :class="['status-badge', member.status]">
+                {{ member.status }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+  </div>
+</div>
+  </div>
+</div>
 
     <div class="chart-summary">
       <div class="chart">
         <pie-chart :data="chartData" 
                   :options="chartOptions" 
-                  style="height: 200px;"/>
+                  style="height: 290px;"/>
         
         <!-- Download button -->
         <div class="download">
@@ -134,13 +188,34 @@
 
       <div class="summary-box">
         <h3>Budget Summary</h3>
+
+        <div class="summary-item">
+      <span>Budget:</span>
+      <span>{{ formatCurrency(currentBudget?.budget_amount || 0) }}</span>
+    </div>
+
         <div class="summary-item">
           <span>Total Expenses:</span>
           <span>{{ formatCurrency(totalAmount) }}</span>
         </div>
-      </div>
+
+        <div class="summary-item remaining">
+      <span>Remaining Budget:</span>
+      <span :class="{ 'negative': remainingBudget < 0 }">
+        {{ formatCurrency(remainingBudget) }}
+      </span>
     </div>
+
+    <div class="progress-bar">
+      <div class="progress" :style="{ width: budgetPercentage + '%' }"></div>
+    </div>
+    <div class="percentage">{{ budgetPercentage.toFixed(0) }}%</div>
   </div>
+  </div>
+  <div v-if="isBudgetExceeded" class="exceeded-warning">
+    ⚠️ {{ currentBudget.budget_name }} exceeded by {{ formatCurrency(exceededAmount) }}
+</div>
+</div>
 </template>
 
 <script>
@@ -164,11 +239,16 @@ export default {
   },
   data() {
     return {
+      memberContributions: [],
+      contributionsLoading: false,
       showGroupList: false,
       userGroups: [],
       userGroupsLoading: false,
       userGroupsError: null,
       showGroupModal: false,
+      groupMembers: [],
+      selectedMember: 'all', // Default to show all members
+      memberFilterLoading: false,
       currentView: 'view', 
       filterCategory: 'All',
       chartOptions: {
@@ -219,19 +299,45 @@ export default {
   computed: {
     ...mapGetters('group', ['getViewExpenses']),
     
+    isBudgetExceeded() {
+    return this.currentBudget && this.totalAmount > this.currentBudget.budget_amount;
+  },
+  
+  exceededAmount() {
+    if (!this.isBudgetExceeded) return 0;
+    return this.totalAmount - this.currentBudget.budget_amount;
+  },
+
+    currentBudget() {
+    return this.$store.state.group.groupBudget;
+  },
+  
+  remainingBudget() {
+    if (!this.currentBudget) return 0;
+    return this.currentBudget.budget_amount - this.totalAmount;
+  },
+  
+  budgetPercentage() {
+    if (!this.currentBudget || this.currentBudget.budget_amount <= 0) return 0;
+    return (this.totalAmount / this.currentBudget.budget_amount) * 100;
+  },
+  
+    
     usdExchangeRate() {
       return this.$store.state.usdExchangeRate || 0.018045;
     },
 
     expenses() {   
-      return (this.getViewExpenses || []).map(expense => ({
-        ...expense,
-        category: expense.expense_type,
-        name: expense.item_name,
-        amount: Number(expense.item_price),
-        date: this.formatDateForView(expense.expense_date)
-      }));
-    },
+  const groupExpenses = this.$store.state.group.expenses || [];
+  return groupExpenses.map(expense => ({
+    ...expense,
+    category: expense.expense_type,
+    name: expense.item_name,
+    amount: Number(expense.item_price),
+    date: this.formatDateForView(expense.expense_date),
+    username: expense.username || expense.user_name || 'Unknown' // Handle both property names
+  }));
+},
     
     chartData() {
       const categoryCounts = {
@@ -298,15 +404,86 @@ export default {
     }
   },
 
+  watch: {
+  expenses: {
+    handler() {
+      this.calculateMemberContributions();
+    },
+    deep: true
+  },
+  groupMembers: {
+    handler() {
+      this.calculateMemberContributions();
+    },
+    deep: true
+  }
+},
+
   created() {
     this.fetchViewExpenses();
     this.fetchExchangeRate();
     this.fetchUserGroups();
+    if (this.$store.state.group.currentGroup) {
+    this.$store.dispatch('group/fetchGroupBudget', this.$store.state.group.currentGroup.id);
+  }
   },
 
   methods: {
     ...mapActions(['fetchViewExpenses', 'fetchExchangeRate']),
     
+    formatPHP(value) {
+    return '₱' + parseFloat(value).toFixed(2);
+  },
+
+  async calculateMemberContributions() {
+  if (!this.$store.state.group.currentGroup) return;
+  
+  this.contributionsLoading = true;
+  try {
+    const groupId = this.$store.state.group.currentGroup.id;
+    
+    // Fetch contributions
+    const contributionsRes = await this.$axios.get(
+      `/api/grp_expenses/groups/${groupId}/contributions`, 
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      }
+    );
+    
+    const contributions = contributionsRes.data?.contributions || [];
+    
+    // Calculate total expenses
+    const totalExpenses = this.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const memberCount = this.groupMembers.length || 1;
+    const equalShare = totalExpenses / memberCount;
+    
+    // Calculate each member's contribution and balance
+    this.memberContributions = this.groupMembers.map(member => {
+      const memberContributed = contributions
+        .filter(c => c.user_id === member.id && c.status === 'completed')
+        .reduce((sum, c) => sum + parseFloat(c.amount), 0);
+        
+      const balance = memberContributed - equalShare;
+      
+      return {
+        id: member.id,
+        username: member.username,
+        contributed: memberContributed,
+        share: equalShare,
+        balance: balance,
+        status: balance >= 0 ? 'completed' : 'pending'
+      };
+    });
+    
+  } catch (err) {
+    console.error('Error calculating contributions:', err);
+  } finally {
+    this.contributionsLoading = false;
+  }
+},
+
     formatUsd(value) {
       const rate = this.$store.state.usdExchangeRate || 0.018045;
       const usdAmount = parseFloat(value) * rate;
@@ -334,6 +511,22 @@ export default {
       return new Date(dateString).toLocaleDateString(undefined, options);
     },
 
+    async fetchGroupMembers(groupId) {
+    try {
+      const response = await this.$axios.get(`/api/grp_expenses/${groupId}/members`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      });
+      
+      if (response.data.success) {
+        this.groupMembers = response.data.data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch group members:', err);
+    }
+  },
+
     async fetchUserGroups() {
       this.userGroupsLoading = true;
       this.userGroupsError = null;
@@ -357,6 +550,52 @@ export default {
       }
     },
 
+    async filterByMember() {
+    if (this.selectedMember === 'all') {
+      // Reset to show all expenses
+      await this.$store.dispatch('group/fetchExpenses', {
+        groupId: this.$store.state.group.currentGroup.id,
+        monthYear: new Date().toISOString().slice(0, 7)
+      });
+      return;
+    }
+
+    this.memberFilterLoading = true;
+    try {
+      const response = await this.$axios.get(
+        `/api/grp_expenses/${this.$store.state.group.currentGroup.id}/expenses/member/${this.selectedMember}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+      // Transform the expenses data to match your component's format
+      const formattedExpenses = response.data.data.map(expense => ({
+        ...expense,
+        category: expense.expense_type,
+        name: expense.item_name,
+        amount: Number(expense.item_price),
+        date: this.formatDateForView(expense.expense_date),
+        username: expense.username
+      }));
+      
+      this.$store.commit('group/SET_EXPENSES', formattedExpenses);
+    }
+  } catch (err) {
+    console.error('Failed to filter by member:', err);
+    this.$notify({
+      title: 'Error',
+      message: 'Failed to fetch member expenses',
+      type: 'error'
+    });
+  } finally {
+    this.memberFilterLoading = false;
+  }
+},
+
     toggleGroupList() {
       this.showGroupList = !this.showGroupList;
       if (this.showGroupList && this.userGroups.length === 0) {
@@ -364,9 +603,35 @@ export default {
       }
     },
     
-    navigateToGroup(groupId) {
-      this.$router.push(`/group/${groupId}`);
-    },
+    async navigateToGroup(groupId) {
+  try {
+    this.showGroupModal = false; 
+    this.$store.commit('group/SET_CURRENT_GROUP_ID', groupId); 
+    
+    await this.$store.dispatch('group/fetchGroup', groupId);
+    await this.$store.dispatch('group/fetchExpenses', { 
+      groupId,
+      monthYear: new Date().toISOString().slice(0, 7) 
+    });
+    
+    await this.$store.dispatch('group/fetchGroupBudget', groupId);
+
+    await this.fetchGroupMembers(groupId);
+    await this.calculateMemberContributions();
+
+    this.selectedMember = 'all';
+    this.filterCategory = 'All'; 
+    this.fetchViewExpenses(); 
+    
+  } catch (err) {
+    console.error('Failed to navigate to group:', err);
+    this.$notify({
+      title: 'Error',
+      message: 'Failed to load group data',
+      type: 'error'
+    });
+  }
+},
     
     goToGroupManagement() {
       this.$router.push('/GC');
@@ -434,26 +699,188 @@ export default {
 </script>
 
 <style scoped>
+.contribution-section {
+  margin-top: 30px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  padding: 20px;
+}
+
+.member-contributions-table {
+  overflow-x: auto;
+}
+
+.member-contributions-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.member-contributions-table th {
+  background-color: #f8f9fa;
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.member-contributions-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-badge.completed {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.pending {
+  background-color: #fff3cd;
+  color: #856404;
+} /*newwww*/
+.member-filter {
+  position: relative;
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.member-filter select {
+  position: relative;
+  padding: 8px;
+  margin: 3px;
+  border-radius: 6px;
+  background-color: #ffffff;
+  border: 2px solid #336333;
+  transition: all 0.3s ease;
+  font-size: 15px;
+  cursor: pointer;
+  min-width: 150px;
+  color: #000;
+}
+
+.member-filter select:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  color: #aaa;
+  border-color: #ddd;
+}
+
+
+.small-spinner {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+.exceeded-warning {
+  margin-top: 0px !important;
+  background-color: #e53935;
+  border-left: 6px solid #b71c1c;
+  border-right: 6px solid #b71c1c;
+  padding: 14px 20px;
+  margin: 20px auto; /* vertically space + center horizontally */
+  margin-inline: 30px; 
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #ffffff;
+  font-size: 20px;
+  text-align: center;
+  width: 100%; 
+  box-sizing: border-box;
+}
+.current-group {
+  margin: 10px auto;
+  padding: 10px 16px;
+  width: 95%;
+  max-width: 400px;
+  background-color: #e0f7f4;
+  border-left: 4px solid #2ca58d;
+  border-right: 4px solid #2ca58d;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.group-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.current-group h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: #256d5c;
+  font-weight: 600;
+}
+
+.current-group p {
+  margin: 0;
+  font-size: 1rem;
+  color: #4b6f6b;
+}
+
+.current-group i {
+  color: #2ca58d;
+  font-size: 1.1rem;
+}
+
 .show-groups-button {
   display: block;
-  width: 100%;
+  width: calc(100% - 60px);
   margin: 20px 30px;
-  padding: 15px 30px; /* Increased padding for a bigger button */
-  background: linear-gradient(135deg, #28a745, #34d399); /* Green gradient */
-  color: white;
+  padding: 16px 36px;
+  background: linear-gradient(135deg, #355248, #7fb0a1, #b4e0d2);
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 600;
   border: none;
-  border-radius: 8px; /* More rounded corners for a smoother look */
-  font-size: 1.2rem; /* Larger font size for better readability */
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease; /* Smooth transition for hover */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  letter-spacing: 0.5px;
+  background-size: 200% 200%; /* For smoother animated transition */
+  background-position: left;
 }
 
 .show-groups-button:hover {
-  background: linear-gradient(135deg, #34d399, #28a745); /* Darker green gradient on hover */
-  transform: translateY(-2px); /* Slight movement effect to indicate interaction */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2); /* Stronger shadow on hover for depth */
+  background-position: right;
+  background: linear-gradient(135deg, #b4e0d2, #7fb0a1, #355248); /* Brighter on hover */
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
 }
+
 
 .show-groups-button i {
   margin-right: 12px; /* Increased space between icon and text */
@@ -689,8 +1116,8 @@ export default {
 .summary-item {
   display: flex;
   justify-content: space-between;
-  margin: 10px 0;
-  font-size: 16px; /* Smaller font */
+  margin: 16px 0;
+  font-size: 18px; /* Smaller font */
   font-weight: bold;
 }
 
@@ -698,6 +1125,32 @@ export default {
   padding-top: 5px;
   border-top: 1px solid #eee;
   margin-top: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 9px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 7px;
+}
+.progress {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  transition: width 0.3s ease;
+}
+
+.progress-bar .progress {
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+}
+
+.percentage {
+  text-align: right;
+  font-size: 13px; /* Reduced font size */
+  margin-top: 4px;
+  color: #555;
+  font-weight: bold;
 }
 
 .negative {
@@ -895,6 +1348,7 @@ cursor: pointer;
 align-self: center;
 margin-bottom: 8px;
 margin-left: 3px;
+margin-top: 10px;
 }
 
 .download-button:hover {
