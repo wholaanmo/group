@@ -264,31 +264,56 @@ export default {
         responsive: true,
         plugins: {
           datalabels: {
-            formatter: (value, context) => {
-              const dataset = context.chart.data.datasets[0].data;
-              const total = dataset.reduce((sum, val) => sum + val, 0);
-              const percentage = (value / total * 100);
-              
-              if (percentage > 0) {
-                return percentage.toFixed(1) + '%';
-              }
-              return null;
-            },
-            color: '#000',
-            font: function(context) {
-              const dataset = context.chart.data.datasets[0].data;
-              const total = dataset.reduce((sum, val) => sum + val, 0);
-              const percentage = (dataset[context.dataIndex] / total * 100);
-              
-              return {
-                weight: 'bold',
-                size: percentage < 5 ? 10 : 12
-              };
-            },
-            anchor: 'center',
-            align: 'center',
-            offset: 0,
-            padding: 0
+      formatter: (value, context) => {
+        const dataset = context.chart.data.datasets[0].data;
+        const total = dataset.reduce((sum, val) => sum + val, 0);
+        const percentage = (value / total * 100);
+        
+        return percentage >= 0.5 ? percentage.toFixed(1) + '%' : null;
+      },
+      color: '#000',
+      font: function(context) {
+        const dataset = context.chart.data.datasets[0].data;
+        const total = dataset.reduce((sum, val) => sum + val, 0);
+        const percentage = (dataset[context.dataIndex] / total * 100);
+        
+        
+        let size = 12;
+        if (percentage <= 5) {
+          size = 10;
+        }
+
+        return {
+          weight: 'bold',
+          size: size
+        };
+      },
+      align: function(context) {
+  const dataset = context.chart.data.datasets[0].data;
+  const total = dataset.reduce((sum, val) => sum + val, 0);
+  const value = dataset[context.dataIndex];
+  const percentage = (value / total) * 100;
+
+  // Move small labels outside
+  return percentage <= 1 ? 'end' : 'center';
+},
+anchor: function(context) {
+  const dataset = context.chart.data.datasets[0].data;
+  const total = dataset.reduce((sum, val) => sum + val, 0);
+  const value = dataset[context.dataIndex];
+  const percentage = (value / total) * 100;
+
+  return percentage <= 1 ? 'end' : 'center';
+},
+offset: function(context) {
+  const dataset = context.chart.data.datasets[0].data;
+  const total = dataset.reduce((sum, val) => sum + val, 0);
+  const value = dataset[context.dataIndex];
+  const percentage = (value / total) * 100;
+
+  return percentage <= 2 ? 10 : 0; // Add space for small slices
+},
+      padding: 0
           },
           legend: {
             position: 'top',
@@ -721,6 +746,10 @@ export default {
     async generatePDF() {
   try {
     const doc = new jsPDF();
+    const formatCurrencyForPDF = (value) => {
+    return `PHP ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  };
+
     
     // Title 
     doc.setFontSize(18);
@@ -729,43 +758,68 @@ export default {
     
     doc.setFontSize(12);
     let filterText = this.filterCategory === 'All' ? 'All Categories' : this.filterCategory;
-    doc.text(`Filter: ${filterText}`, 105, 30, { align: 'center' });
+    doc.text(`${filterText}`, 105, 30, { align: 'center' });
+
+    if (this.remainingBudget < 0) {
+      const exceededAmount = Math.abs(this.remainingBudget);
+      doc.setFontSize(12);
+      doc.setTextColor(255, 0, 0); // Red color for warning
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Budget Exceeded by ${formatCurrencyForPDF(exceededAmount)}`, 105, 40, { align: 'center' });
+      doc.setTextColor(0, 0, 0); // Reset to black
+    }
     
     // Budget Summary Section
     doc.setFontSize(14);
-    doc.text('Budget Summary', 14, 45);
+    doc.text('Budget Summary', doc.internal.pageSize.getWidth() / 2, 45 + (this.remainingBudget < 0 ? 10 : 0), { 
+      align: 'center' 
+    });
     
     // Budget Summary Table
     autoTable(doc, {
-      startY: 50,
+      startY: 50 + (this.remainingBudget < 0 ? 10 : 0),
       head: [['Metric', 'Amount']],
       body: [
-        ['Total Budget', this.formatCurrency(this.currentBudget?.budget_amount || 0)],
-        ['Total Expenses', this.formatCurrency(this.totalAmount)],
-        ['Remaining Budget', this.formatCurrency(this.remainingBudget)],
-        ['Budget Utilization', `${this.budgetPercentage.toFixed(0)}%`]
+        ['Total Budget', formatCurrencyForPDF(this.currentBudget?.budget_amount || 0)],
+        ['Total Expenses', formatCurrencyForPDF(this.totalAmount)],
+        ['Remaining Budget', formatCurrencyForPDF(this.remainingBudget)]
       ],
-      margin: { left: 10, right: 10 },
+      margin: { left: 10, right: 10, bottom: 20, top: 20  },
+      tableWidth: 'wrap',
+      horizontalAlign: 'center',
       styles: {
         cellPadding: 4,
         fontSize: 10,
-        halign: 'left',
+        halign: 'center',
+        lineColor: [73, 125, 116],
         valign: 'middle'
       },
       columnStyles: {
-        0: { cellWidth: 60, fontStyle: 'bold' },
-        1: { cellWidth: 40 }
+        0: { cellWidth: 95, fontStyle: 'bold' },
+        1: { cellWidth: 95 }
       },
       headStyles: {
-        fillColor: [76, 175, 80],
+        fillColor: [73, 125, 116],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      // Highlight remaining budget if negative
+      didDrawCell: (data) => {
+        if (data.section === 'body' && data.row.index === 2 && this.remainingBudget < 0) {
+          doc.setFillColor(255, 200, 200); // Light red background
+          doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+          doc.setTextColor(255, 0, 0); // Red text
+          doc.text(data.cell.text, data.cell.x + data.cell.width / 2, data.cell.y + data.cell.height / 2 + 2, {
+            align: 'center'
+          });
+        }
       }
     });
     
-    // Expense Categories Chart (as a table since we can't embed charts in PDF easily)
+    // Expense Categories Chart
     doc.setFontSize(14);
-    doc.text('Expense Categories Breakdown', 14, doc.lastAutoTable.finalY + 15);
+    doc.text('Expense Categories Breakdown', doc.internal.pageSize.getWidth() / 2, doc.lastAutoTable.finalY + 15, { align: 'center' });
     
     const categoryData = Object.entries(this.chartData.labels.reduce((acc, label, index) => {
       acc[label] = this.chartData.datasets[0].data[index];
@@ -777,61 +831,70 @@ export default {
       head: [['Category', 'Amount', 'Percentage']],
       body: categoryData.map(([category, amount]) => [
         category,
-        this.formatCurrency(amount),
+        formatCurrencyForPDF(amount),
         `${((amount / this.totalAmount) * 100).toFixed(1)}%`
       ]),
-      margin: { left: 10, right: 10 },
+      margin: { left: 10, right: 10, bottom: 20, top: 20  },
+      tableWidth: 'wrap',
+      horizontalAlign: 'center',
       styles: {
         cellPadding: 4,
         fontSize: 10,
-        halign: 'left',
-        valign: 'middle'
+        halign: 'center',
+        valign: 'middle',
+        lineColor: 	[159, 82, 85]
       },
       columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 30 }
+        0: { cellWidth: 70 },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 60 }
       },
       headStyles: {
-        fillColor: [76, 175, 80],
+        fillColor: [159, 82, 85],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        halign: 'center'
       }
     });
     
     // Member Contributions Section
     doc.setFontSize(14);
-    doc.text('Member Contributions', 14, doc.lastAutoTable.finalY + 15);
+    doc.text('Member Contributions', doc.internal.pageSize.getWidth() / 2, doc.lastAutoTable.finalY + 15, { align: 'center' });
     
     autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 20,
       head: [['Member', 'Contributed', 'Share', 'Balance', 'Status']],
       body: this.memberContributions.map(member => [
         member.username,
-        this.formatCurrency(member.contributed),
-        this.formatCurrency(member.share),
-        `${this.formatCurrency(Math.abs(member.balance))} ${member.balance < 0 ? '(Owes)' : '(Owed)'}`,
+        formatCurrencyForPDF(member.contributed),
+        formatCurrencyForPDF(member.share),
+        `${formatCurrencyForPDF(Math.abs(member.balance))} ${member.balance < 0 ? '(Owes)' : '(Owed)'}`,
         member.status
       ]),
-      margin: { left: 10, right: 10 },
+      margin: { left: 10, right: 10, bottom: 20, top: 20 },
+      tableWidth: 'wrap',
+      horizontalAlign: 'center',
       styles: {
         cellPadding: 4,
         fontSize: 9,
-        halign: 'left',
+        halign: 'center',
         valign: 'middle',
-        overflow: 'linebreak'
+        overflow: 'linebreak',
+        
       },
       columnStyles: {
-        0: { cellWidth: 30 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 20 }
+        0: { cellWidth: 50 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 45 },
+        4: { cellWidth: 25 }
       },
       headStyles: {
-        fillColor: [76, 175, 80],
+        fillColor: [94, 104, 109],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        halign: 'center',
+        lineColor: [94, 104, 109]
       },
       bodyStyles: {
         textColor: [0, 0, 0],
@@ -848,48 +911,68 @@ export default {
     
     // Expenses Table
     doc.setFontSize(14);
-    doc.text('Expense Details', 14, doc.lastAutoTable.finalY + 15);
+    doc.text('Expense Details', doc.internal.pageSize.getWidth() / 2, doc.lastAutoTable.finalY + 15, { align: 'center' });
     
     const tableData = this.filteredExpenses.map(expense => [
       expense.date,
       expense.category,
       expense.name,
-      this.formatCurrency(expense.amount),
+      formatCurrencyForPDF(expense.amount),
       expense.username
     ]);
     
     autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 20,
-      head: [['Date', 'Category', 'Description', 'Amount', 'Added By']],
+      head: [['Date', 'Category', 'Item Name', 'Amount', 'Added By']],
       body: tableData,
-      margin: { left: 10, right: 10 },
+      margin: { left: 10, right: 10, bottom: 20, top: 20 },
+      tableWidth: 'wrap',
+      horizontalAlign: 'center',
       styles: {
         cellPadding: 4,
         fontSize: 9,
         halign: 'left',
+        overflow: 'linebreak',
+        halign: 'center',  // center all cells
         valign: 'middle',
-        overflow: 'linebreak'
+        lineColor: [85, 124, 86]
       },
       columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 20 },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 40 },
         2: { cellWidth: 40 },
-        3: { cellWidth: 20 },
-        4: { cellWidth: 20 }
+        3: { cellWidth: 40 },
+        4: { cellWidth: 40 }
       },
       headStyles: {
-        fillColor: [76, 175, 80],
+        fillColor: 	[85, 124, 86],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        halign: 'center'
       }
     });
     
+    try {
+      await this.$nextTick();
+      const chartCanvas = document.querySelector('canvas');
+      if (chartCanvas) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const chartImage = chartCanvas.toDataURL('image/png');
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.text('Expense Breakdown', 105, 20, { align: 'center' });
+        doc.addImage(chartImage, 'PNG', 30, 30, 150, 150);
+      }
+    } catch (chartError) {
+      console.error('Error adding chart:', chartError);
+    }
+
     // Add page numbers
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(10);
-      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
+      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
     }
     
     doc.save('expense-report.pdf');
