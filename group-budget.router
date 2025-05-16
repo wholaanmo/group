@@ -297,7 +297,7 @@ router.post('/groups/:groupId/contributions', groupAuth('member'), async (req, r
     // Insert contribution
     const [result] = await pool.query(
       'INSERT INTO contributions (group_id, user_id, amount, status) VALUES (?, ?, ?, ?)',
-      [groupId, user_id, amount, 'completed']
+      [groupId, user_id, amount, 'pending']
     );
 
     const [newContribution] = await pool.query(
@@ -395,6 +395,28 @@ router.put('/groups/:groupId/contributions/:contributionId', groupAuth('member')
     });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+router.put('/groups/:groupId/contributions/:contributionId/status', groupAuth('member'), async (req, res) => {
+  try {
+    const { groupId, contributionId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!['completed', 'pending'].includes(status)) {
+      return res.status(400).json({ success: 0, message: 'Invalid status' });
+    }
+
+    await pool.query(
+      'UPDATE contributions SET status = ? WHERE id = ? AND group_id = ?',
+      [status, contributionId, groupId]
+    );
+
+    return res.json({ success: 1, message: 'Contribution status updated' });
+  } catch (err) {
+    console.error('Error updating contribution status:', err);
+    return res.status(500).json({ success: 0, message: 'Failed to update status' });
   }
 });
 module.exports = router;
