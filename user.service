@@ -1,0 +1,137 @@
+const pool = require('../../config/database');
+
+module.exports = {
+    checkUsernameExists: async (username) => {
+        try {
+            const [results] = await pool.execute(
+                'SELECT id FROM users WHERE username = ?',
+                [username]
+            );
+            return results.length > 0;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    checkEmailExists: async (email) => {
+        try {
+            const [results] = await pool.execute(
+                'SELECT id FROM users WHERE email = ?',
+                [email]
+            );
+            return results.length > 0;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    create: async (userdata) => {
+        try {
+
+            const usernameExists = await module.exports.checkUsernameExists(userdata.username);
+            if (usernameExists) {
+                throw new Error('Username already exists');
+            }
+            
+            // Check if email already exists
+            const emailExists = await module.exports.checkEmailExists(userdata.email);
+            if (emailExists) {
+                throw new Error('Email already exists');
+            }
+
+            const [results] = await pool.execute(
+            'INSERT INTO users (username, email, password, registration_date) values (?,?,?,?)',
+            [
+                userdata.username,
+                userdata.email,
+                userdata.password,
+                userdata.registration_date
+            ]
+            );
+            return results;
+        } catch (error) {
+            throw error;
+        }
+    },
+    getUsers: async () => {
+        try {
+            const [results] = await pool.execute(
+            'SELECT username, email, registration_date from users',
+            );
+            return results;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    getUserByUserId: async (id) => {
+        try {
+            const [results] = await pool.execute(
+            'SELECT username, email, registration_date from users where id = ?',
+            [id]
+            );
+            return results[0];
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    updateUser: async (userdata) => {
+        try {
+
+            const [existingUsername] = await pool.execute(
+                'SELECT id FROM users WHERE username = ? AND id != ?',
+                [userdata.username, userdata.id]
+            );
+            if (existingUsername.length > 0) {
+                throw new Error('Username already taken by another user');
+            }
+            
+            // Check if the new email is already taken by another user
+            const [existingEmail] = await pool.execute(
+                'SELECT id FROM users WHERE email = ? AND id != ?',
+                [userdata.email, userdata.id]
+            );
+            if (existingEmail.length > 0) {
+                throw new Error('Email already taken by another user');
+            }
+
+            const [results] = await pool.execute(
+            'UPDATE users set username=?, email=?, password=?, registration_date=? WHERE id= ?',
+            [
+                userdata.username,
+                userdata.email,
+                userdata.password,
+                userdata.registration_date,
+                userdata.id
+            ]
+            );
+            return results;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    deleteUser: async (id) => {
+        try {
+            const [results] = await pool.execute(
+                'DELETE FROM users WHERE id = ?',
+                [id]
+            );
+            return results;
+        } catch (error) {
+            throw error;
+        }
+    },
+    getUserByUserEmail: async (email) => {
+        try {
+            const [results] = await pool.execute(
+                'SELECT * FROM users WHERE email = ?',
+                [email]
+            );
+            return results[0];
+        } catch (error) {
+            throw error;
+        }
+    }
+};
