@@ -136,10 +136,10 @@ joinGroup: async (req, res) => {
 },
 
   getGroupInfo: async (req, res) => {
-    let connection; //NEWWWWWWWW
+    let connection; 
     try {
       const { groupId } = req.params;
-      const connection = await pool.getConnection();
+      connection = await pool.getConnection();
       
       const [group] = await connection.query(
         'SELECT id, group_name, group_code, created_by, created_at FROM groups WHERE id = ?',
@@ -159,10 +159,10 @@ joinGroup: async (req, res) => {
   },
 
   getMembers: async (req, res) => {
-    let connection;     //NEWWWWWWWWWWWWWW
+    let connection;  
     try {
       const { groupId } = req.params;
-      const connection = await pool.getConnection();
+      connection = await pool.getConnection();
       
       const [members] = await connection.query(
         `SELECT u.id, u.username, u.email, gm.role 
@@ -262,3 +262,4 @@ try {
     }
   }
 };
+
