@@ -50,8 +50,8 @@
                                 </label>
                             </div>
 
-                            <p v-if="serverMessage" class="success-message" :class="{ 'success-message': isSuccess }">
-                                    {{ serverMessage }}
+                            <p v-if="serverMessage" class="message" :class="{ 'error-message': isError, 'success-message': !isError }">
+                                {{ serverMessage }}
                             </p>
 
                             <button type="submit" class="login-btn">SIGN UP</button>
@@ -82,57 +82,68 @@
             <div class="modal-content">
                 <h3>Your Financial Data Security Is Our Priority</h3>
 
-                <h4>1. Information We Collect</h4>
-                <p>To provide our budget tracking services, we collect:</p>
-                <ul>
+                <div class="modal-column">
+                <div class="policy-section">
+                    <h4>1. Information We Collect</h4>
+                    <p>To provide our budget tracking services, we collect:</p>
+                    <ul>
                     <li><strong>Account Information:</strong> Username, email, and encrypted password</li>
                     <li><strong>Financial Data:</strong> 
                         <ul>
-                            <li>Individual expense amounts, dates, and categories (food, bills, transportation, etc.)</li>
-                            <li>Budget limits and remaining balances</li>
-                            <li>Group expense allocations and member contributions</li>
+                        <li>Individual expense amounts, dates, and categories (food, bills, transportation, etc.)</li>
+                        <li>Budget limits and remaining balances</li>
+                        <li>Group expense allocations and member contributions</li>
                         </ul>
                     </li>
                     <li><strong>Usage Data:</strong> How you interact with our features (expense filtering, visualization preferences, etc.)</li>
-                </ul>
-                
-                <h4>2. How We Use Your Financial Data</h4>
-                <p>We process your information exclusively to:</p>
-                <ul>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h4>2. How We Use Your Financial Data</h4>
+                    <p>We process your information exclusively to:</p>
+                    <ul>
                     <li>Generate accurate budget reports and spending analyses</li>
                     <li>Power our visualization tools (pie charts, tables, etc.)</li>
                     <li>Calculate group expense allocations and balances</li>
                     <li>Enable date filtering and transaction categorization</li>
                     <li>Improve core features like expense editing/deletion</li>
                     <li>Secure your account and prevent unauthorized access</li>
-                </ul>
-                
-                <h4>3. Group Expense Specifics</h4>
-                <p>For shared expense features:</p>
-                <ul>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h4>3. Group Expense Specifics</h4>
+                    <p>For shared expense features:</p>
+                    <ul>
                     <li>Group creators can see member contributions but not their other private expenses</li>
                     <li>Expense details shared within groups are encrypted</li>
                     <li>You can leave groups at any time to stop data sharing</li>
-                </ul>
-                
-                <h4>4. Your Rights & Controls</h4>
-                <p>You can:</p>
-                <ul>
+                    </ul>
+                </div>
+
+                <div class="policy-section">
+                    <h4>4. Your Rights & Controls</h4>
+                    <p>You can:</p>
+                    <ul>
                     <li>Export all expense data (CSV/JSON formats)</li>
                     <li>Permanently delete individual transactions or entire accounts</li>
                     <li>Opt out of non-essential emails while keeping transaction alerts</li>
                     <li>Request a full data audit report</li>
-                </ul>
+                    </ul>
+                </div>
+                </div>
+
                 
                 <div class="policy-highlights">
-                    <h4>Key Privacy Features:</h4>
+                    <h3>Key Privacy Features:</h3>
                     <div class="highlight-grid">
                         <div class="highlight-item">
                             <div class="highlight-icon">🔒</div>
                             <div>We never sell or share your financial data</div>
                         </div>
                         <div class="highlight-item">
-                            <div class="highlight-icon">🧩</div>
+                            <div class="highlight-icon">🛡️</div>
                             <div>Group expenses are encrypted end-to-end</div>
                         </div>
                         <div class="highlight-item">
@@ -146,7 +157,7 @@
                     </div>
                 </div>
                 
-                <p>By using Money Log, you consent to this privacy-focused data handling.</p>
+                <p class="last-p">By using Money Log, you consent to this privacy-focused data handling.</p>
             </div>
             <div class="modal-footer">
                 <button @click="showPrivacyModal = false" class="modal-close-btn">I Understand</button>
@@ -170,6 +181,7 @@ export default {
     const password = ref('')
     const password_confirmation = ref('')
     const serverMessage = ref('')
+    const isError = ref(false)
     const acceptedPrivacyPolicy = ref(false)
     const showPrivacyModal = ref(false)
 
@@ -210,50 +222,58 @@ export default {
 
     const registerUser = async () => {
       serverMessage.value = ''
+      isError.value = false 
     
       if (!username.value || !email.value || !password.value || !password_confirmation.value) {
-        serverMessage.value = "All fields are required!"
-        return
-      }
+    serverMessage.value = "All fields are required!"
+    isError.value = true
+    return
+  }
     
-      if (password.value !== password_confirmation.value) {
-        serverMessage.value = "Passwords do not match!"
-        return
-      }
-    
-      if (!acceptedPrivacyPolicy.value) {
-        serverMessage.value = "You must accept the privacy policy!"
-        return
-      }
+  if (password.value !== password_confirmation.value) {
+    serverMessage.value = "Passwords do not match!"
+    isError.value = true
+    return
+  }
 
-      if (strengthScore.value < 3) {
-        serverMessage.value = "Please choose a stronger password (mix uppercase, numbers, and special characters)"
-        return
-      }
+  if (!acceptedPrivacyPolicy.value) {
+    serverMessage.value = "You must accept the privacy policy!"
+    isError.value = true
+    return
+  }
+
+  if (strengthScore.value < 4) { // Changed from <3 to <=2
+    serverMessage.value = "Password must be strong! Include uppercase, lowercase, numbers, and special characters."
+    isError.value = true
+    return
+  }
     
-      try {
-        const res = await axios.post('http://localhost:3000/api/users', {
-          username: username.value,
-          email: email.value,
-          password: password.value,
-          accepted_privacy_policy: true // Add this to your database
-        });
-    
-        if (res.data.success === 1) {
-            serverMessage.value = "Registration successful! Redirecting...";
-            setTimeout(() => router.push('/login'), 1500)
-        } else {
-            serverMessage.value = res.data.message || "Registration failed.";
-        }
-      } catch (error) {
-        console.error("Registration error:", error);
-        if (error.response?.data?.message) {
-          serverMessage.value = error.response.data.message;
-        } else {
-          serverMessage.value = "Registration failed. Please try again.";
-        }
-      }
-    };
+  try {
+    const res = await axios.post('http://localhost:3000/api/users', {
+      username: username.value,
+      email: email.value,
+      password: password.value,
+      accepted_privacy_policy: true
+    });
+
+    if (res.data.success === 1) {
+        serverMessage.value = "Registration successful! Redirecting...";
+        isError.value = false
+        setTimeout(() => router.push('/login'), 1500)
+    } else {
+        serverMessage.value = res.data.message || "Registration failed.";
+        isError.value = true
+    }
+  } catch (error) {
+    console.error("Registration error:", error);
+    if (error.response?.data?.message) {
+      serverMessage.value = error.response.data.message;
+    } else {
+      serverMessage.value = "Registration failed. Please try again.";
+    }
+    isError.value = true
+  }
+};
     
     return {
       username,
@@ -261,6 +281,7 @@ export default {
       password,
       password_confirmation,
       serverMessage,
+      isError, 
       acceptedPrivacyPolicy,
       showPrivacyModal,
       hasMinLength,
@@ -283,8 +304,9 @@ export default {
 }
 
 .server-message.success {
-    color: black;
+    color: rgb(2, 155, 2);
 }
+
 .about-link {
     color: #2e7d32;
     text-decoration: none;
@@ -368,7 +390,8 @@ export default {
 .policy-highlights {
     margin: 2rem 0;
     padding: 1.5rem;
-    background-color: #f8f9fa;
+    background-color: #f1f4fb;
+    border-left: 4px solid #babac1;
     border-radius: 8px;
 }
 
@@ -377,6 +400,7 @@ export default {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
     margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 
 .highlight-item {
@@ -388,6 +412,14 @@ export default {
 .highlight-icon {
     font-size: 1.5rem;
     line-height: 1;
+}
+
+.last-p {
+    color: #f11010;
+}
+
+h4 {
+    color: #058516;
 }
 
 .modal-content ul ul {
@@ -428,10 +460,35 @@ export default {
     text-decoration: underline;
 }
 
+.message {
+    margin: 10px 0;
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.success-message {
+    color: #00C851;
+    background-color: #e8f5e9;
+    border: 1px solid #00C851;
+}
 .error-message {
     color: #ff4444;
-    margin: 10px 0;
-    font-size: 14px;
+    background-color: #ffebee;
+    border: 1px solid #ff4444;
+}
+
+
+
+@keyframes flash {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+.error-message {
+    animation: flash 1.5s infinite;
 }
 
 /* Modal Styles */
@@ -446,90 +503,86 @@ export default {
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    animation: modalFadeIn 0.4s;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal-container {
-    background-color: white;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 700px;
-    max-height: 80vh;
+    background: #fff;
+    border-radius: 18px;
+    width: 90%;
+    max-width: 750px;
+    max-height: 75vh;
     overflow-y: auto;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    border: 1.5px solid #b6c6e6;
+    padding-bottom: 10px;
+    /* Add a slight scale-in effect */
+    animation: modalScaleIn 0.3s;
+}
+
+@keyframes modalScaleIn {
+    from { transform: scale(0.97); }
+    to { transform: scale(1); }
 }
 
 .modal-header {
-    padding: 20px;
-    border-bottom: 1px solid #eee;
+    font-size: 22px;
+    color: #058516;
+    background: linear-gradient(90deg, #d0f9cd 0%, #f7ffe2 100%);
+    padding: 22px 24px 18px 24px;
+    border-bottom: 2px solid #058516;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-radius: 18px 18px 0 0;
+}
+
+.modal-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.policy-section {
+  padding: 1rem;
+  border: 3px solid #c5fbda;
+  border-radius: 8px;
 }
 
 .modal-content {
-    padding: 20px;
-    line-height: 1.6;
-}
-
-.modal-content h3, .modal-content h4 {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-}
-
-.modal-content ul {
-    margin-left: 20px;
-    margin-bottom: 1em;
+    padding: 28px 24px 18px 24px;
+    line-height: 1.7;
+    background: #f8fbff;
+    border-radius: 0 0 12px 12px;
 }
 
 .modal-footer {
-    padding: 15px 20px;
-    border-top: 1px solid #eee;
+    padding: 18px 24px;
+    border-top: 1px solid #e3eaf7;
     text-align: right;
+    background: #f8fbff;
+    border-radius: 0 0 18px 18px;
 }
 
 .modal-close-btn {
-    background: transparent;
+    background: #e3f9d3 ;
     border: none;
     font-size: 1.5em;
     cursor: pointer;
-    color: #555;
-    padding: 0.25em 0.5em;
-    border-radius: 10%;
-    transition: background 0.3s ease, color 0.3s ease;
+    color: #058516;
+    padding: 0.25em 0.7em;
+    border-radius: 50%;
+    transition: background 0.3s, color 0.3s;
+    margin-left: 10px;
 }
-
 .modal-close-btn:hover {
-    background: #f0f0f0;
-    color: #000;
-}
-    .privacy-policy-container {
-    margin: 15px 0;
-    display: flex;
-    align-items: center;
-}
-
-.privacy-checkbox {
-    margin-right: 10px;
-}
-
-.privacy-label {
-    font-size: 14px;
-    color: #333;
-}
-
-.privacy-link {
-    color: #4a6baf;
-    text-decoration: none;
-}
-
-.privacy-link:hover {
-    text-decoration: underline;
-}
-
-.error-message {
-    color: #ff4444;
-    margin: 10px 0;
-    font-size: 14px;
+    background: #c1c7b1;
+    color: #222;
 }
     
     .register-bg {
