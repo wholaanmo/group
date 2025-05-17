@@ -538,56 +538,68 @@
 
     <!-- Add Expense Modal -->
     <div v-if="showAddExpenseModal" class="modal-overlay">
-      <div class="modal-content2">
-        <div class="modal-header">
-          <h3>Add New Expense</h3>
-          <button @click="closeModal" class="close-button">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="submitExpense">
-            <div class="form-group">
-              <label>Category</label>
-              <select v-model="newExpense.expense_type" required>
-                <option value="">Select a category</option> 
-                <option value="Food">Food</option>
-                <option value="Bill">Bill</option>
-                <option value="Transportation">Transportation</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Accomodation">Accomodation</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Other">Others</option>
-              </select>
-            </div>
-            <div class="form-group">
-            <label>Item Name</label>
-              <input 
-                v-model="newExpense.item_name" 
-                type="text" 
-                required
-                minlength="2"
-                maxlength="255"
-              >
-              <small v-if="!newExpense.item_name" class="error">Item name is required</small>
-            </div>
-            <div class="form-group">
-              <label>Amount</label>
-              <input 
-                v-model="newExpense.item_price" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                required
-              >
-              <small v-if="!newExpense.item_price" class="error">Amount is required</small>
-            </div>
-            <div class="form-actions">
-              <button type="button" @click="closeModal" class="cancel-button">Cancel</button>
-              <button type="submit" class="submit-button">Add Expense</button>
-            </div>
-          </form>
-        </div>
-      </div>
+  <div class="modal-content2">
+    <div class="modal-header">
+      <h3>Add New Expense</h3>
+      <button @click="closeModal" class="close-button">&times;</button>
     </div>
+    <div class="modal-body">
+      <form @submit.prevent="submitExpense">
+        <div class="form-group">
+          <label>Category</label>
+          <select v-model="newExpense.expense_type" required @change="handleCategoryChange">
+            <option value="">Select a category</option>
+            <option value="Food">Food</option>
+            <option value="Bill">Bill</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Healthcare">Healthcare</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- Add this conditional field for custom category -->
+        <div v-if="newExpense.expense_type === 'Other'" class="form-group">
+          <label>Custom Category</label>
+          <input 
+            v-model="customExpenseType" 
+            type="text" 
+            placeholder="Enter custom category name"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label>Item Name</label>
+          <input 
+            v-model="newExpense.item_name" 
+            type="text" 
+            required
+            minlength="2"
+            maxlength="255"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label>Amount</label>
+          <input 
+            v-model="newExpense.item_price" 
+            type="number" 
+            step="0.01" 
+            min="0" 
+            required
+          >
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" @click="closeModal" class="cancel-button">Cancel</button>
+          <button type="submit" class="submit-button">Add Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
       <!-- Edit Contribution Modal -->
       <div v-if="showEditContributionModal" class="modal-overlay">
@@ -640,6 +652,15 @@
                 <option value="Other">Others</option>
               </select>
             </div>
+            <div v-if="editingExpense.expense_type === 'Other'" class="form-group">
+          <label>Custom Category</label>
+          <input 
+            v-model="customExpenseType" 
+            type="text" 
+            placeholder="Enter custom category name"
+            required
+          >
+        </div>
             <div class="form-group">
               <label>Item Name</label>
               <input v-model="editingExpense.item_name" type="text" required>
@@ -745,6 +766,12 @@ export default {
         item_price: 0,
         expense_type: 'Food',
       },
+      customExpenseType: '', 
+      editingExpense: {
+      expense_type: '',
+      item_name: '',
+      item_price: null
+    },
       
       editingExpense: {},
       confirmationTitle: '',
@@ -997,6 +1024,12 @@ export default {
     //  'fetchAvailableBudgets'
     ]),
 
+    handleCategoryChange() {
+    if (this.newExpense.expense_type !== 'Other') {
+      this.customExpenseType = '';
+    }
+  },
+
     formatDate(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -1148,9 +1181,25 @@ showError(message) {
     }
   },
 
-    editExpense(expense) {
-    this.editingExpense = { ...expense };  // Create a copy of the expense to edit
-    this.showEditExpenseModal = true;     // Set the modal visibility to true
+  editExpense(expense) {
+    this.editingExpense = { ...expense };
+    
+    // Check if this is a custom category (not in our standard list)
+    const standardCategories = ['Food', 'Bill', 'Transportation', 'Entertainment', 'Healthcare', 'Shopping'];
+    if (!standardCategories.includes(expense.expense_type)) {
+      this.editingExpense.expense_type = 'Other';
+      this.customExpenseType = expense.expense_type;
+    } else {
+      this.customExpenseType = '';
+    }
+    
+    this.showEditExpenseModal = true;
+  },
+
+  handleEditCategoryChange() {
+    if (this.editingExpense.expense_type !== 'Other') {
+      this.customExpenseType = '';
+    }
   },
 
   formatPHP(amount) {
@@ -1691,61 +1740,77 @@ async updateBudget() {
     },
     
     async submitExpense() {
-      if (!this.hasBudget) {
+  // Check if budget exists
+  if (!this.hasBudget) {
     this.showError('Please set a group budget before adding expenses');
     return;
   }
 
-      try {
-        const user = JSON.parse(localStorage.getItem('user'));
+  // Validate custom category if "Other" is selected
+  if (this.newExpense.expense_type === 'Other' && !this.customExpenseType) {
+    this.showError('Please enter a custom category');
+    return;
+  }
 
-        const expenseData = {
-          item_name: this.newExpense.item_name,
-          item_price: parseFloat(this.newExpense.item_price),
-          expense_type: this.newExpense.expense_type,
-          group_id: this.localGroupId,
-          user_id: user.id   
-        };
+  try {
+    const user = JSON.parse(localStorage.getItem('user'));
 
-        console.log('Submitting expense:', expenseData);
+    // Prepare expense data with custom category handling
+    const expenseData = {
+      item_name: this.newExpense.item_name,
+      item_price: parseFloat(this.newExpense.item_price),
+      expense_type: this.newExpense.expense_type === 'Other' 
+        ? this.customExpenseType 
+        : this.newExpense.expense_type,
+      group_id: this.localGroupId,
+      user_id: user.id   
+    };
 
-        // Add the expense
-        await this.addExpense(expenseData);
+    console.log('Submitting expense:', expenseData);
 
-        // Show success notification
-        this.$notify({
-          title: 'Success',
-          message: 'Expense added successfully',
-          type: 'success'
-        });
+    // Add the expense
+    await this.addExpense(expenseData);
 
-        // Close the modal and reset form
-        this.closeModal();
-        this.resetNewExpense();
+    // Show success notification
+    this.$notify({
+      title: 'Success',
+      message: 'Expense added successfully',
+      type: 'success'
+    });
 
-        // Reload the expenses
-        await this.loadExpenses();
+    // Close the modal and reset form
+    this.closeModal();
+    this.resetNewExpense();
+    this.customExpenseType = ''; // Reset custom category field
 
-        // Recalculate the remaining budget
-        this.calculateRemaining();
+    // Reload the expenses
+    await this.loadExpenses();
 
-        // If the remaining budget is less than zero, show the alert
-        if (this.remainingBudget < 0) {
-          this.showBudgetExceededAlert = true; // Show alert without auto hiding
-        }
-      } catch (err) {
-        console.error('Error adding expense:', err);
-        this.$notify({
-          title: 'Error',
-          message: err.response?.data?.message || 'Failed to add expense',
-          type: 'error'
-        });
-      }
-    },
+    // Recalculate the remaining budget
+    this.calculateRemaining();
 
-    closeAlert() {
-    this.showBudgetExceededAlert = false;
-  },
+    // If the remaining budget is less than zero, show the alert
+    if (this.remainingBudget < 0) {
+      this.showBudgetExceededAlert = true;
+    }
+  } catch (err) {
+    console.error('Error adding expense:', err);
+    this.$notify({
+      title: 'Error',
+      message: err.response?.data?.message || 'Failed to add expense',
+      type: 'error'
+    });
+  }
+},
+
+// Add this method to your component if you don't have it already
+showError(message) {
+  this.$notify({
+    title: 'Error',
+    message: message,
+    type: 'error'
+  });
+},
     
     async submitEditExpense() {
       try {
@@ -1804,17 +1869,31 @@ async updateBudget() {
     }
   },
     
-async handleUpdateExpense() {
+  async handleUpdateExpense() {
   try {
-    await this.updateExpense(this.editingExpense);
+    // Prepare the expense data with custom category handling
+    const expenseData = {
+      ...this.editingExpense,
+      expense_type: this.editingExpense.expense_type === 'Other' 
+        ? this.customExpenseType 
+        : this.editingExpense.expense_type
+    };
+
+    // Call your existing updateExpense method with the modified data
+    await this.updateExpense(expenseData);
+    
+    // Show success notification
     this.$notify({
       title: 'Success',
       message: 'Expense updated successfully',
       type: 'success'
     });
+    
+    // Close modal and refresh data
     this.closeModal();
     await this.loadExpenses();
-    this.updateTotalAmount(); 
+    this.updateTotalAmount();
+    
   } catch (err) {
     console.error('Error updating expense:', err);
     this.$notify({
