@@ -547,49 +547,114 @@
       <form @submit.prevent="submitExpense">
         <div class="form-group">
           <label>Category</label>
-          <select v-model="newExpense.expense_type" required @change="handleCategoryChange">
-            <option value="">Select a category</option>
-            <option value="Food">Food</option>
-            <option value="Bill">Bill</option>
-            <option value="Transportation">Transportation</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Healthcare">Healthcare</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Other">Other</option>
-          </select>
+          <div class="input-with-voice">
+            <select 
+              v-model="newExpense.expense_type" 
+              required 
+              @change="handleCategoryChange"
+            >
+              <option value="">Select a category</option>
+              <option value="Food">Food</option>
+              <option value="Bill">Bill</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Other">Other</option>
+            </select>
+            <button 
+  v-if="isVoiceSupported"
+  @click="startVoiceInput('category')" 
+  class="voice-btn"
+  :class="{ active: isListening && voiceInputActiveField === 'category' }"
+  title="Set category by voice"
+>
+  <i class="fas fa-microphone"></i>
+</button>
+          </div>
         </div>
 
-        <!-- Add this conditional field for custom category -->
+        <!-- Custom Category Field with Voice Input -->
         <div v-if="newExpense.expense_type === 'Other'" class="form-group">
           <label>Custom Category</label>
-          <input 
-            v-model="customExpenseType" 
-            type="text" 
-            placeholder="Enter custom category name"
-            required
-          >
+          <div class="input-with-voice">
+            <input 
+              v-model="customExpenseType" 
+              type="text" 
+              placeholder="Enter custom category name"
+              required
+            />
+            <button 
+              @click="startVoiceInput('customType')" 
+              class="voice-btn"
+              :class="{ active: isListening && voiceInputActiveField === 'customType' }"
+              title="Set custom category by voice"
+            >
+              <i class="fas fa-microphone"></i>
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
           <label>Item Name</label>
-          <input 
-            v-model="newExpense.item_name" 
-            type="text" 
-            required
-            minlength="2"
-            maxlength="255"
-          >
+          <div class="input-with-voice">
+            <input 
+              v-model="newExpense.item_name" 
+              type="text" 
+              required
+              minlength="2"
+              maxlength="255"
+            />
+            <button 
+              @click="startVoiceInput('item')" 
+              class="voice-btn"
+              :class="{ active: isListening && voiceInputActiveField === 'item' }"
+              title="Set item name by voice"
+            >
+              <i class="fas fa-microphone"></i>
+            </button>
+          </div>
         </div>
         
         <div class="form-group">
           <label>Amount</label>
-          <input 
-            v-model="newExpense.item_price" 
-            type="number" 
-            step="0.01" 
-            min="0" 
-            required
+          <div class="input-with-voice">
+            <input 
+              v-model="newExpense.item_price" 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              required
+            />
+            <button 
+              @click="startVoiceInput('amount')" 
+              class="voice-btn"
+              :class="{ active: isListening && voiceInputActiveField === 'amount' }"
+              title="Set amount by voice"
+            >
+              <i class="fas fa-microphone"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Voice Controls -->
+        <div class="voice-controls">
+          <button 
+            @click="isListening ? stopVoiceInput() : startVoiceInput()" 
+            class="voice-control-btn"
+            :class="{ active: isListening }"
           >
+            <i class="fas" :class="isListening ? 'fa-stop-circle' : 'fa-microphone'"></i>
+            {{ isListening ? 'Stop Voice' : 'Start Voice Input' }}
+          </button>
+          <button @click="showVoiceHelp" class="voice-help-btn">
+            <i class="fas fa-question-circle"></i> Voice Help
+          </button>
+          
+          <div v-if="isListening" class="voice-feedback">
+            <div class="voice-input-preview">{{ voiceInput || 'Listening...' }}</div>
+            <div class="voice-help-text">Say "help" for available commands</div>
+          </div>
         </div>
         
         <div class="form-actions">
@@ -601,6 +666,29 @@
   </div>
 </div>
 
+<!-- Voice Help Modal -->
+<div v-if="showVoiceHelpModal" class="voice-help-modal">
+  <div class="voice-help-content">
+    <div class="voice-help-header">
+      <h3><i class="fas fa-microphone"></i> Voice Commands Help</h3>
+      <button @click="showVoiceHelpModal = false" class="close-btn">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="voice-help-body">
+      <div class="voice-command" v-for="(command, index) in voiceCommandsHelp" :key="index">
+        <div class="command-prefix">•</div>
+        <div class="command-details">
+          <span class="command-example">{{ command.example }}</span>
+          <span class="command-description">- {{ command.description }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="voice-help-footer">
+      <button @click="showVoiceHelpModal = false" class="btn-ok">Got it!</button>
+    </div>
+  </div>
+</div>
       <!-- Edit Contribution Modal -->
       <div v-if="showEditContributionModal" class="modal-overlay">
   <div class="con-contribution">
@@ -781,7 +869,42 @@ export default {
       // Invite member
       inviteEmail: '',
       inviteError: '',
-      inviteSuccess: ''
+      inviteSuccess: '',
+      isListening: false,
+    voiceInput: '',
+    voiceInputActiveField: null,
+    showVoiceHelpModal: false,
+    voiceCommandsHelp: [
+      {
+        example: "'Set category [category name]'",
+        description: "Select expense category (Food, Bill, Transportation, etc.)"
+      },
+      {
+        example: "'Add item [item name]'",
+        description: "Enter item name (e.g., 'taxi fare', 'dinner')"
+      },
+      {
+        example: "'Set amount [amount]'",
+        description: "Enter amount (e.g., 'fifty', 'one hundred twenty pesos')"
+      },
+      {
+        example: "'Set custom type [description]'",
+        description: "Enter a custom expense category description"
+      },
+      {
+        example: "'Submit'",
+        description: "Save the expense"
+      },
+      {
+        example: "'Stop'",
+        description: "Stop voice input"
+      },
+      {
+        example: "'Help'",
+        description: "Show this help dialog"
+      }
+    ],
+    recognition: null
     };
   },
   computed: {
@@ -794,6 +917,10 @@ export default {
       isAdmin: state => state.isAdmin,
       groupBudget: state => state.groupBudget || {}
     }),
+
+    isVoiceSupported() {
+    return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+  },
 
     totalContributions() {
     if (!this.contributions) return 0;
@@ -936,6 +1063,8 @@ export default {
   async created() {
   console.log('Group component created');
   
+  this.setupVoiceRecognition();
+
     if (this.groupId) {
       this.isBudgetLoading = true;
       try {
@@ -985,6 +1114,7 @@ export default {
     
     this.originalName = this.group.group_name || '';
 
+
     await this.initializeGroupData();
      await this.fetchUserGroups(),
      await this.fetchContributions();
@@ -1023,6 +1153,327 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
+
+    setupVoiceRecognition() {
+  // Check for browser support
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    console.warn('Speech recognition not supported in this browser');
+    // Optionally show a user-friendly message
+    this.$notify({
+      title: 'Voice Input Unavailable',
+      message: 'Voice input is not supported in your current browser. Please try Chrome, Edge, or Safari.',
+      type: 'warning',
+      duration: 5000
+    });
+    return false;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  this.recognition = new SpeechRecognition();
+  
+  // Configure recognition settings
+  this.recognition.continuous = true;
+  this.recognition.interimResults = true;
+  this.recognition.maxAlternatives = 1;
+  this.recognition.lang = 'en-US'; // Set language
+
+  this.recognition.onresult = (event) => {
+    const transcript = Array.from(event.results)
+      .map(result => result[0])
+      .map(result => result.transcript)
+      .join('');
+    
+    this.voiceInput = transcript;
+    this.processVoiceCommand(transcript);
+  };
+
+  this.recognition.onerror = (event) => {
+    console.error('Speech recognition error', event.error);
+    this.isListening = false;
+    this.$notify({
+      title: 'Voice Input Error',
+      message: `Error: ${event.error}`,
+      type: 'error'
+    });
+  };
+
+  this.recognition.onend = () => {
+    if (this.isListening) {
+      // Restart recognition if still listening
+      try {
+        this.recognition.start();
+      } catch (e) {
+        console.error('Error restarting recognition:', e);
+      }
+    }
+  };
+
+  return true;
+},
+
+  startVoiceInput(field = null) {
+    if (!this.recognition && !this.setupVoiceRecognition()) {
+    return; // Already showed error message in setup
+  }
+
+  this.stopVoiceInput();
+  this.voiceInputActiveField = field;
+  this.isListening = true;
+  this.voiceInput = '';
+  
+  try {
+    this.recognition.start();
+    this.$notify({
+      title: 'Listening',
+      message: 'Speak now...',
+      type: 'info',
+      duration: 2000
+    });
+  } catch (err) {
+    console.error('Speech recognition error:', err);
+    this.isListening = false;
+    this.$notify({
+      title: 'Microphone Error',
+      message: "Couldn't access microphone. Please check permissions.",
+      type: 'error'
+    });
+  }
+},
+
+  stopVoiceInput() {
+    if (this.isListening) {
+      this.isListening = false;
+      this.voiceInputActiveField = null;
+      try {
+        if (this.recognition) {
+          this.recognition.stop();
+        }
+      } catch (err) {
+        console.error('Error stopping recognition:', err);
+      }
+      this.$notify({
+        title: 'Stopped',
+        message: 'Voice input stopped',
+        type: 'info'
+      });
+    }
+  },
+
+  processVoiceCommand(transcript) {
+    if (!this.isListening) return;
+
+    // Clean the transcript
+    transcript = transcript.trim().toLowerCase();
+    this.voiceInput = transcript;
+
+    // Handle field-specific input
+    if (this.voiceInputActiveField) {
+      switch (this.voiceInputActiveField) {
+        case 'category':
+          this.handleCategoryInput(transcript);
+          break;
+        case 'item':
+          this.handleItemInput(transcript);
+          break;
+        case 'amount':
+          this.handleAmountInput(transcript);
+          break;
+        case 'customType':
+          this.handleCustomTypeInput(transcript);
+          break;
+      }
+      this.stopVoiceInput();
+      return;
+    }
+
+    this.handleGeneralCommands(transcript);
+  },
+
+  handleCategoryInput(transcript) {
+    const category = this.matchCategory(transcript);
+    this.newExpense.expense_type = category;
+    this.$notify({
+      title: 'Category Set',
+      message: `Category set to: ${category}`,
+      type: 'success'
+    });
+  },
+
+  handleItemInput(transcript) {
+    this.newExpense.item_name = transcript;
+    this.$notify({
+      title: 'Item Set',
+      message: `Item set to: ${transcript}`,
+      type: 'success'
+    });
+  },
+
+  handleAmountInput(transcript) {
+    const amount = this.extractNumber(transcript);
+    if (amount !== null) {
+      this.newExpense.item_price = amount;
+      this.$notify({
+        title: 'Amount Set',
+        message: `Amount set to: ${this.formatPHP(amount)}`,
+        type: 'success'
+      });
+    } else {
+      this.$notify({
+        title: 'Error',
+        message: "Couldn't understand the amount. Please try again.",
+        type: 'error'
+      });
+    }
+  },
+
+  handleCustomTypeInput(transcript) {
+    this.customExpenseType = transcript;
+    this.$notify({
+      title: 'Custom Type Set',
+      message: `Custom type set to: ${transcript}`,
+      type: 'success'
+    });
+  },
+
+  handleGeneralCommands(transcript) {
+    // Command: Set category
+    if (transcript.startsWith('set category ') || transcript.startsWith('select category ')) {
+      const category = transcript.replace(/^(set|select) category /i, '').trim();
+      this.handleCategoryInput(category);
+      return;
+    }
+    
+    // Command: Add item
+    if (transcript.startsWith('add item ') || transcript.startsWith('set item ')) {
+      const item = transcript.replace(/^(add|set) item /i, '').trim();
+      this.handleItemInput(item);
+      return;
+    }
+    
+    // Command: Set amount
+    if (transcript.startsWith('set amount ') || transcript.startsWith('enter amount ')) {
+      const amount = transcript.replace(/^(set|enter) amount /i, '').trim();
+      this.handleAmountInput(amount);
+      return;
+    }
+    
+    // Command: Set custom type
+    if (transcript.startsWith('set custom type ') || transcript.startsWith('enter custom type ')) {
+      const customType = transcript.replace(/^(set|enter) custom type /i, '').trim();
+      this.handleCustomTypeInput(customType);
+      return;
+    }
+    
+    // Command: Submit
+    if (transcript.includes('submit') || transcript.includes('save')) {
+      this.submitExpense();
+      return;
+    }
+    
+    // Command: Stop
+    if (transcript.includes('stop') || transcript.includes('cancel')) {
+      this.stopVoiceInput();
+      return;
+    }
+    
+    // Command: Help
+    if (transcript.includes('help')) {
+      this.showVoiceHelp();
+      return;
+    }
+    
+    // Fallback - if we don't recognize the command
+    this.$notify({
+      title: 'Not Recognized',
+      message: "Command not recognized. Say 'help' for available commands.",
+      type: 'info'
+    });
+  },
+
+  matchCategory(spokenCategory) {
+    const categories = ['Food', 'Bill', 'Transportation', 'Entertainment', 'Healthcare', 'Shopping', 'Other'];
+    const lowerSpoken = spokenCategory.toLowerCase().trim();
+    
+    // 1. First check for exact match
+    const exactMatch = categories.find(cat => cat.toLowerCase() === lowerSpoken);
+    if (exactMatch) return exactMatch;
+    
+    // 2. Fuzzy matching for each category
+    if (['food', 'eat', 'meal', 'restaurant', 'groceries', 'dining', 'lunch', 'dinner', 'breakfast', 'snack'].some(term => lowerSpoken.includes(term))) {
+      return 'Food';
+    }
+    
+    if (['bill', 'payment', 'rent', 'electric', 'water', 'internet', 'phone', 'utility', 'subscription', 'mortgage'].some(term => lowerSpoken.includes(term))) {
+      return 'Bill';
+    }
+    
+    if (['transport', 'bus', 'train', 'taxi', 'gas', 'fuel', 'parking', 'metro', 'subway', 'uber', 'lyft', 'car', 'maintenance'].some(term => lowerSpoken.includes(term))) {
+      return 'Transportation';
+    }
+    
+    if (['entertain', 'movie', 'game', 'concert', 'hobby', 'sport', 'netflix', 'spotify', 'music', 'party', 'bar', 'alcohol'].some(term => lowerSpoken.includes(term))) {
+      return 'Entertainment';
+    }
+    
+    if (['health', 'doctor', 'hospital', 'pharmacy', 'medicine', 'drug', 'insurance', 'dental', 'optical', 'checkup', 'clinic'].some(term => lowerSpoken.includes(term))) {
+      return 'Healthcare';
+    }
+    
+    if (['shop', 'clothes', 'gift', 'mall', 'store', 'amazon', 'online', 'purchase', 'buy', 'market'].some(term => lowerSpoken.includes(term))) {
+      return 'Shopping';
+    }
+    
+    // 3. Default fallback
+    return 'Other';
+  },
+
+  extractNumber(spokenAmount) {
+    // Extract numbers like "twenty five pesos" -> 25
+    const wordsToNumbers = {
+      'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+      'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+      'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
+      'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17,
+      'eighteen': 18, 'nineteen': 19, 'twenty': 20, 'thirty': 30,
+      'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+      'eighty': 80, 'ninety': 90
+    };
+
+    // Try to extract direct number
+    const directNumberMatch = spokenAmount.match(/(\d+(\.\d+)?)/);
+    if (directNumberMatch) {
+      return parseFloat(directNumberMatch[1]);
+    }
+
+    // Try to convert words to number
+    const words = spokenAmount.toLowerCase().split(/\s+/);
+    let total = 0;
+    let current = 0;
+    
+    for (const word of words) {
+      const num = wordsToNumbers[word];
+      if (num !== undefined) {
+        if (num >= 20) {
+          current = num;
+        } else {
+          current += num;
+        }
+      } else if (word === 'hundred') {
+        current *= 100;
+      } else if (word === 'thousand') {
+        current *= 1000;
+        total += current;
+        current = 0;
+      }
+    }
+    
+    total += current;
+    return total > 0 ? total : null;
+  },
+
+  showVoiceHelp() {
+    this.showVoiceHelpModal = true;
+  },
 
     handleCategoryChange() {
     if (this.newExpense.expense_type !== 'Other') {
@@ -2111,6 +2562,198 @@ showError(message) {
 </script>
 
 <style scoped>
+/* Voice Input Styles */
+.input-with-voice {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-voice select,
+.input-with-voice input {
+  flex-grow: 1;
+  padding-right: 40px;
+}
+
+.voice-btn {
+  background: #f0f0f0;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  margin-left: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.voice-btn:hover {
+  color: #42b983;
+}
+
+.voice-btn.active {
+  color: #42b983;
+  animation: pulse 1.5s infinite;
+}
+
+.voice-controls {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+  align-items: center;
+}
+
+.voice-control-btn {
+  padding: 8px 15px;
+  background-color: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+}
+
+.voice-control-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.voice-control-btn.active {
+  background-color: #42b983;
+  color: white;
+}
+
+.voice-help-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  font-size: 1.2rem;
+}
+
+.voice-help-btn:hover {
+  background-color: #3367d6;
+}
+
+.voice-feedback {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.voice-input-preview {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.voice-help-text {
+  font-size: 0.8em;
+  color: #666;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* Voice Help Modal */
+.voice-help-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.voice-help-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.voice-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.voice-help-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: #666;
+}
+
+.voice-help-body {
+  margin-bottom: 15px;
+}
+
+.voice-command {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.command-prefix {
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+.command-example {
+  font-weight: bold;
+  color: #42b983;
+}
+
+.command-description {
+  color: #666;
+}
+
+.voice-help-footer {
+  text-align: right;
+}
+
+.btn-ok {
+  padding: 8px 20px;
+  background-color: #42b983;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+} /*NEWWWWWWWWWWW */
 .no-budget {
   background-color: #f4f8f6;
   border: 1px dashed #b6cfc5;
