@@ -137,6 +137,7 @@
 
 
          <div class="form-group">
+          <h3> Add your Expenses</h3>
            <label>CATEGORY:</label>
            <div class="input-with-voice">
            <select v-model="expenseType" required @change="checkExpenseType">
@@ -210,7 +211,6 @@
   </div>
 </div>
 
- 
          <button class="btn" type="submit"   :disabled="!hasBudgetForCurrentMonth">{{ editId ? 'Update Expense' : 'Add Expense' }}</button>
          <div v-if="!hasBudgetForCurrentMonth" class="no-budget-warning">
          <p>Please create a budget for {{ formatMonthYear(currentMonthYear) }} before adding expenses</p>
@@ -225,9 +225,6 @@
   <div class="voice-help-content">
     <div class="voice-help-header">
       <h3><i class="fas fa-microphone"></i> Voice Commands Help</h3>
-      <button @click="showVoiceHelpModal = false" class="close-btn">
-        <i class="fas fa-times"></i>
-      </button>
     </div>
     <div class="voice-help-body">
       <div class="voice-command" v-for="(command, index) in voiceCommandsHelp" :key="index">
@@ -1560,21 +1557,25 @@ async deleteExpenseHandler(id) {
   justify-content: center;
   z-index: 1000;
 }
-
 .voice-help-content {
-  background-color: white;
-  border-radius: 10px;
+  background-color: #fefefe;
+  border-radius: 16px;
   width: 90%;
-  max-width: 500px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 440px;
+  max-height: 70vh; /* Limit height to 70% of the viewport */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   animation: modalFadeIn 0.3s ease-out;
+  font-family: "Segoe UI", sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
+
 .voice-help-header {
-  background-color: #4285f4;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
   color: white;
-  padding: 15px 20px;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1582,7 +1583,7 @@ async deleteExpenseHandler(id) {
 
 .voice-help-header h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1592,14 +1593,19 @@ async deleteExpenseHandler(id) {
   background: none;
   border: none;
   color: white;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   cursor: pointer;
   padding: 5px;
+  transition: transform 0.2s;
+}
+
+.close-btn:hover {
+  transform: scale(1.2);
 }
 
 .voice-help-body {
-  padding: 20px;
-  max-height: 60vh;
+  padding: 18px 20px;
+  max-height: 55vh;
   overflow-y: auto;
 }
 
@@ -1610,9 +1616,9 @@ async deleteExpenseHandler(id) {
 }
 
 .command-prefix {
-  font-size: 1.5rem;
-  color: #4285f4;
-  margin-right: 10px;
+  font-size: 1.4rem;
+  color: #6a9c89;
+  margin-right: 12px;
 }
 
 .command-details {
@@ -1624,60 +1630,72 @@ async deleteExpenseHandler(id) {
 
 .command-example {
   font-weight: 600;
-  color: #333;
+  color: #4f7a6b;
   font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
+  font-size: 0.93rem;
 }
 
 .command-description {
-  color: #666;
-  font-size: 0.9rem;
+  color: #555;
+  font-size: 0.88rem;
 }
 
 .voice-help-footer {
-  padding: 15px 20px;
-  background-color: #f8f9fa;
+  padding: 14px 20px;
+  background-color: #f0f2f1;
   display: flex;
   justify-content: flex-end;
-  border-top: 1px solid #eee;
+  border-top: 1px solid #ddd;
 }
 
 .btn-ok {
-  background-color: #4285f4;
+  background-color: #6a9c89;
   color: white;
   border: none;
-  padding: 8px 20px;
-  border-radius: 4px;
+  padding: 8px 18px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
 }
 
 .btn-ok:hover {
-  background-color: #3367d6;
+  background-color: #4f7a6b;
+  transform: translateY(-2px);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .voice-help-btn {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background-color: #4285f4;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
   color: white;
   border: none;
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   z-index: 100;
-  font-size: 1.2rem;
+  font-size: 0.9rem;
 }
 
 .voice-help-btn:hover {
-  background-color: #3367d6;
+  background: #8bbcae;
 }
 
 /* Animation */
@@ -1723,7 +1741,7 @@ async deleteExpenseHandler(id) {
 }
 
 .voice-btn:hover {
-  background: #e0e0e0;
+  color: #42b983;
 }
 
 .voice-btn.active {
@@ -2003,28 +2021,57 @@ async deleteExpenseHandler(id) {
   width: 100%;
 }
 
-.btn-add, .btn-edit{
-  background: #2a4935;
+.btn-add, .btn-edit {
+  background: linear-gradient(135deg, #2a4935, #3d6b4d);
   color: white;
   border: none;
-  padding: 10px 15px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 15px;
-  transition: all 0.3s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  max-width: 72px;
   font-size: 14px;
-  margin-left: 0;      
-  display: inline-block; 
+  max-width: 72px;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+  
+  /* Creative additions */
+  position: relative;
+  overflow: hidden;
+  font-weight: 600;
+  letter-spacing: 0.05em;
 }
 
+/* Subtle radial highlight effect */
+.btn-add::before,
+.btn-edit::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.15), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: 8px;
+  pointer-events: none;
+}
 
+.btn-add:hover::before,
+.btn-edit:hover::before {
+  opacity: 1;
+}
+
+/* Hover effect */
 .btn-add:hover, .btn-edit:hover {
   background: #e6e6e6;
   color: #2a2a2a;
   transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  font-weight: 700;
+  letter-spacing: 0.1em;
 }
+
 
 .budget-display {
   flex-wrap: wrap;
@@ -2242,64 +2289,76 @@ async deleteExpenseHandler(id) {
 
 .budget-form-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
 }
 
-.budget-form-modal .budget-form {
-  background-color: white;
-  color: #333;
-  padding: 25px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 400px;
+.budget-form {
+  background: linear-gradient(145deg, #fefefe, #f0fdfa);
+  color: #2e4e40;
+  padding: 20px;
+  border-radius: 14px;
+  width: 92%;
+  max-width: 380px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  animation: fadeSlideUp 0.3s ease;
+  font-family: "Segoe UI", sans-serif;
 }
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-  gap: 10px;
+  justify-content: space-between;
+  margin-top: 16px;
+  gap: 8px;
 }
 
-.btn-save, .btn-cancel {
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.btn-save,
+.btn-cancel {
   flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
   text-align: center;
 }
 
 .btn-save {
-  background-color: #537D5D;
-  color: white;
+  background-color: #4f7a6b;
+  color: #fff;
   border: none;
 }
 
 .btn-save:hover {
-  background-color: #73946B;
-  transform: translateY(-1px);
+  background-color: #6a9c89;
+  transform: scale(1.03);
 }
 
 .btn-cancel {
-  background-color: #f5f5f5;
-  color: #666;
-  border: 1px solid #ddd;
+  background-color: #f8f8f8;
+  color: #555;
+  border: 1px solid #ccc;
 }
 
 .btn-cancel:hover {
-  background-color: #e0e0e0;
-  transform: translateY(-1px);
+  background-color: #e9f2f0;
+  transform: scale(1.02);
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .loading {
@@ -2415,11 +2474,12 @@ th, td {
 } 
 
 th {
-  background-color: #2a4935;
+  background-color: #6A9C89;
   font-weight: 700;
   font-size: 1rem; 
   padding: 12px 20px; 
   color: white;
+  border-bottom: 3px solid #4f7a6b; 
 } 
 
 tr {
@@ -2461,24 +2521,25 @@ td, th {
 }
 
 .edit-btn {
-  background-color: #059669;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
+  color: white;
+  box-shadow: 0 2px 5px rgba(106, 156, 137, 0.4);
 }
 
 .delete-btn {
-  background-color: #b33c3c;
+  background: linear-gradient(135deg, #e57373, #d32f2f, #b71c1c);
+  color: white;
+  box-shadow: 0 2px 5px rgba(211, 47, 47, 0.4);
 }
 
-.edit-btn:hover {
-  background-color: #10b981;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(52, 211, 153, 0.3);
+.edit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7aa98c, #5e8873, #486858);
+  box-shadow: 0 4px 10px rgba(74, 109, 92, 0.6);
 }
 
-.delete-btn:hover {
-  background-color: #ef4444; 
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
-  animation: pulse 0.4s ease-in-out;
+.delete-btn:hover:not(:disabled)  {
+  background: linear-gradient(135deg, #d32f2f, #b71c1c, #7f0000);
+  box-shadow: 0 4px 10px rgba(123, 0, 0, 0.6);
 }
 
 @keyframes pulse {
@@ -2515,96 +2576,129 @@ td, th {
 }
 
 .form-title {
-  color: #2a4935;
-  background-color: #d8fcdd;
-  height: 50px;
-  align-content: center;
+  background: linear-gradient(to right, #8bbcae, #6a9c89);
+  color: #ffffff;
+  padding: 14px 20px;
+  border-radius: 10px;
   text-align: center;
   margin-bottom: 20px;
-  font-size: 1.4rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.5px;
 }
 
-.form-group1 {
-  margin-bottom: 16px;
+
+.form-group1,
+.form-group {
+  margin-bottom: 20px;
 }
 
-.form-group1 label {
-  margin-bottom: 6px;
-  color: #2a4935;
+.form-group1 label,
+.form-group label {
+  margin-bottom: 4px;
+  color: #4f7a6b;
   font-size: 1.1rem;
-  font-weight: 500;
+  font-weight: 600;
   text-align: left;
-  margin-left: 2px;
+  margin-left: 4px;
+  display: block;
 }
 
-.form-input {
+.form-group h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #8bbcae, #4f7a6b);
+  padding: 10px 16px;
+  border-radius: 10px;
+  position: relative;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.5px;
+}
+
+.form-group h3::before {
+  content: "📝";
+  margin-right: 10px;
+  font-size: 1.1rem;
+  vertical-align: middle;
+}
+
+
+.form-input,
+input[type="text"],
+input[type="number"],
+select {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #c8e6c9;
-  border-radius: 8px;
+  padding: 8px 10px;
   font-size: 0.95rem;
+  border-radius: 8px;
+  border: 1.8px solid #6a9c89;
+  background-color: #f7f9f8;
   color: #333;
-  background-color: #f8f8f8;
-  transition: all 0.3s ease;
+  box-sizing: border-box;
+  min-height: 32px;
+  transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.form-input:focus {
+.form-input:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
   outline: none;
-  border-color: #4caf50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
-  background-color: white;
+  border-color: #4f7a6b;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(143, 176, 163, 0.2);
 }
 
-.form-input[disabled] {
-  background-color: #f0f0f0;
-  color: #666;
+.form-input[disabled],
+input[disabled],
+select[disabled] {
+  background-color: #f1f1f1;
+  color: #777;
+  cursor: not-allowed;
 }
- .form-group {
-     margin-bottom: 16px;
-     margin-top: 20px;
- }
+
  
- label {
-     margin-left: 25px;
-     text-align: left;
-     display: block;
-     margin-bottom: 5px;
-     font-size: 17px;
-     color: black;
- }
- 
- input[type="text"],
- input[type="number"],
- select {
-     width: 100%;
-     max-width: 800px;
-     padding: 10px;
-     font-size: 16px;
-     border-radius: 10px;
-     border: 3px solid #ddd;
-     border-color: #2a4935;
-     box-sizing: border-box;
-     min-height: 35px;
- }
- 
- .btn {
-     padding: 12px 50px;
-     background-color: #2a4935;
-     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
-     color: white;
-     border: none;
-     border-radius: 12px;
-     cursor: pointer;
-     font-size: 15px;
-     transition: background-color 0.3s, color 0.3s; /* Smooth effect */
+.btn {
+  padding: 12px 50px;
+  background: linear-gradient(135deg, #2a4935, #3d6b4d); /* subtle gradient */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: all 0.4s ease;
+}
+
+.btn:hover::before {
+  left: 100%;
 }
 
 .btn:hover {
-    background-color: #dcdcdc; /* Change to any color you want */
-    color: #333333; /* Text color on hover */
-    transform: translateY(-2px);
+  background: #dcdcdc;
+  color: #2a4935;
+  transform: translateY(-2px);
 }
+
 
 .btn1 {
     padding: 12px 50px;
