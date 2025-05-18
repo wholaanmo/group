@@ -1242,10 +1242,7 @@ offset: function(context) {
 /* Modal Styles */
 .group-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
@@ -1254,34 +1251,32 @@ offset: function(context) {
 }
 
 .group-modal {
-  background-color: #ffffff;
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 16px;
   width: 85%;
-  max-width: 480px;
-  max-height: 60vh; /* Slightly smaller height */
+  max-width: 460px;
+  max-height: 60vh;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  overflow-x: hidden;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.2);
   animation: modalFadeIn 0.3s ease-out;
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #BBD8A3 transparent; /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #6a9c89 transparent;
 }
 
-/* Custom Scrollbar for Webkit */
+/* Webkit scrollbar */
 .group-modal::-webkit-scrollbar {
   width: 6px;
 }
-.group-modal::-webkit-scrollbar-track {
-  background: transparent;
-}
 .group-modal::-webkit-scrollbar-thumb {
-  background-color: #537D5D;
+  background-color: #6a9c89;
   border-radius: 8px;
 }
 
 @keyframes modalFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-16px);
   }
   to {
     opacity: 1;
@@ -1290,77 +1285,68 @@ offset: function(context) {
 }
 
 .group-modal-header {
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  color: white;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #d3d3d3;
-  background-color: #BBD8A3;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
 }
 
 .group-modal-header h3 {
   margin: 0;
-  font-size: 1.4rem;
-  color: #5c5c5c;
+  font-size: 1.3rem;
 }
 
 .close-modal {
   background: none;
   border: none;
-  font-size: 1.5rem;
-  color: #5c5c5c;
+  font-size: 1.4rem;
+  color: white;
   cursor: pointer;
-  padding: 5px 8px;
+  padding: 6px;
   border-radius: 50%;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition: background-color 0.3s, transform 0.2s;
 }
-
 .close-modal:hover {
-  background-color: #d0f0c0;
+  background-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
 }
 
-.group-modal-content {
-  padding: 18px;
-  background-color: #fafafa;
-}
-
 .groups-list {
-  padding: 10px;
-  background-color: #f9f9f9;
+  padding: 14px;
+  background-color: #f7fdf9;
 }
 
 .group-item {
-  cursor: pointer;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: 10px;
-  background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color 0.25s, box-shadow 0.25s;
+  cursor: pointer;
 }
-
 .group-item:hover {
-  background-color: #e0f7e5;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  background-color: #e4f4ef;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .group-info h4 {
   margin: 0;
-  font-size: 1.1rem;
-  color: #2f6f45;
+  font-size: 1.05rem;
+  color: #4f7a6b;
 }
 
 .group-meta {
   margin-top: 4px;
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.85rem;
+  color: #6a9c89;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1368,18 +1354,20 @@ offset: function(context) {
 
 .group-meta i {
   margin-right: 6px;
-  color: #537D5D;
+  color: #6a9c89;
 }
+
 .group-actions {
+  color: #4f7a6b;
   font-size: 1.2rem;
-  color: #537D5D;
   display: flex;
   align-items: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s;
 }
 .group-item:hover .group-actions {
   transform: translateX(4px);
 }
+
 .no-expenses-message {
   justify-content: center;
   align-items: center;
