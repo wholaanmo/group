@@ -251,7 +251,7 @@
         @click="activeTab = 'contribution'" 
         :class="{ active: activeTab === 'contribution' }"
       >
-        Group Contribution
+        Contribution
       </button>
       <button 
         v-if="isAdmin"
@@ -544,6 +544,14 @@
       <button @click="closeModal" class="close-button">&times;</button>
     </div>
     <div class="modal-body">
+      <button 
+        @click="showVoiceHelp()" 
+        class="voice-help-btn" 
+        title="Voice commands help"
+      >
+        <i class="fas fa-question-circle"></i> Voice Help
+      </button>
+
       <form @submit.prevent="submitExpense">
         <div class="form-group">
           <label>Category</label>
@@ -563,14 +571,13 @@
               <option value="Other">Other</option>
             </select>
             <button 
-  v-if="isVoiceSupported"
-  @click="startVoiceInput('category')" 
-  class="voice-btn"
-  :class="{ active: isListening && voiceInputActiveField === 'category' }"
-  title="Set category by voice"
->
-  <i class="fas fa-microphone"></i>
-</button>
+      @click="startVoiceInput('category')" 
+      class="voice-btn" 
+      :class="{ active: isListening && voiceInputActiveField === 'category' }"
+      title="Set category by voice"
+    >
+      <i class="fas fa-microphone"></i>
+    </button>
           </div>
         </div>
 
@@ -606,13 +613,13 @@
               maxlength="255"
             />
             <button 
-              @click="startVoiceInput('item')" 
-              class="voice-btn"
-              :class="{ active: isListening && voiceInputActiveField === 'item' }"
-              title="Set item name by voice"
-            >
-              <i class="fas fa-microphone"></i>
-            </button>
+      @click="startVoiceInput('item')" 
+      class="voice-btn" 
+      :class="{ active: isListening && voiceInputActiveField === 'item' }"
+      title="Set item name by voice"
+    >
+      <i class="fas fa-microphone"></i>
+    </button>
           </div>
         </div>
         
@@ -627,33 +634,13 @@
               required
             />
             <button 
-              @click="startVoiceInput('amount')" 
-              class="voice-btn"
-              :class="{ active: isListening && voiceInputActiveField === 'amount' }"
-              title="Set amount by voice"
-            >
-              <i class="fas fa-microphone"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Voice Controls -->
-        <div class="voice-controls">
-          <button 
-            @click="isListening ? stopVoiceInput() : startVoiceInput()" 
-            class="voice-control-btn"
-            :class="{ active: isListening }"
-          >
-            <i class="fas" :class="isListening ? 'fa-stop-circle' : 'fa-microphone'"></i>
-            {{ isListening ? 'Stop Voice' : 'Start Voice Input' }}
-          </button>
-          <button @click="showVoiceHelp" class="voice-help-btn">
-            <i class="fas fa-question-circle"></i> Voice Help
-          </button>
-          
-          <div v-if="isListening" class="voice-feedback">
-            <div class="voice-input-preview">{{ voiceInput || 'Listening...' }}</div>
-            <div class="voice-help-text">Say "help" for available commands</div>
+      @click="startVoiceInput('amount')" 
+      class="voice-btn" 
+      :class="{ active: isListening && voiceInputActiveField === 'amount' }"
+      title="Set amount by voice"
+    >
+      <i class="fas fa-microphone"></i>
+    </button>
           </div>
         </div>
         
@@ -671,9 +658,6 @@
   <div class="voice-help-content">
     <div class="voice-help-header">
       <h3><i class="fas fa-microphone"></i> Voice Commands Help</h3>
-      <button @click="showVoiceHelpModal = false" class="close-btn">
-        <i class="fas fa-times"></i>
-      </button>
     </div>
     <div class="voice-help-body">
       <div class="voice-command" v-for="(command, index) in voiceCommandsHelp" :key="index">
@@ -689,6 +673,7 @@
     </div>
   </div>
 </div>
+
       <!-- Edit Contribution Modal -->
       <div v-if="showEditContributionModal" class="modal-overlay">
   <div class="con-contribution">
@@ -852,7 +837,7 @@ export default {
       newExpense: {
         item_name: '',
         item_price: 0,
-        expense_type: 'Food',
+        expense_type: '',
       },
       customExpenseType: '', 
       editingExpense: {
@@ -871,14 +856,21 @@ export default {
       inviteError: '',
       inviteSuccess: '',
       isListening: false,
-    voiceInput: '',
-    voiceInputActiveField: null,
-    showVoiceHelpModal: false,
-    voiceCommandsHelp: [
+      showVoiceHelpModal: false,
+      isListening: false,
+      voiceInput: '',
+      voiceCommands: [],
+      recognition: null,
+      voiceInputActiveField: null,
+      voiceCommandsHelp: [
       {
         example: "'Set category [category name]'",
         description: "Select expense category (Food, Bill, Transportation, etc.)"
       },
+      {
+    example: "'Set custom type [description]'",
+    description: "Enter a custom expense category description"
+  },
       {
         example: "'Add item [item name]'",
         description: "Enter item name (e.g., 'taxi fare', 'dinner')"
@@ -886,10 +878,6 @@ export default {
       {
         example: "'Set amount [amount]'",
         description: "Enter amount (e.g., 'fifty', 'one hundred twenty pesos')"
-      },
-      {
-        example: "'Set custom type [description]'",
-        description: "Enter a custom expense category description"
       },
       {
         example: "'Submit'",
@@ -903,8 +891,7 @@ export default {
         example: "'Help'",
         description: "Show this help dialog"
       }
-    ],
-    recognition: null
+    ]
     };
   },
   computed: {
@@ -917,10 +904,6 @@ export default {
       isAdmin: state => state.isAdmin,
       groupBudget: state => state.groupBudget || {}
     }),
-
-    isVoiceSupported() {
-    return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-  },
 
     totalContributions() {
     if (!this.contributions) return 0;
@@ -1153,92 +1136,92 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
-
-    setupVoiceRecognition() {
-  // Check for browser support
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    console.warn('Speech recognition not supported in this browser');
-    // Optionally show a user-friendly message
-    this.$notify({
-      title: 'Voice Input Unavailable',
-      message: 'Voice input is not supported in your current browser. Please try Chrome, Edge, or Safari.',
-      type: 'warning',
-      duration: 5000
-    });
-    return false;
-  }
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  this.recognition = new SpeechRecognition();
+    closeAlert() {
+    this.showBudgetExceededAlert = false;
+  },
   
-  // Configure recognition settings
-  this.recognition.continuous = true;
-  this.recognition.interimResults = true;
-  this.recognition.maxAlternatives = 1;
-  this.recognition.lang = 'en-US'; // Set language
+    showVoiceHelp() {
+    this.showVoiceHelpModal = true;
+  },
 
-  this.recognition.onresult = (event) => {
-    const transcript = Array.from(event.results)
-      .map(result => result[0])
-      .map(result => result.transcript)
-      .join('');
-    
-    this.voiceInput = transcript;
-    this.processVoiceCommand(transcript);
-  };
-
-  this.recognition.onerror = (event) => {
-    console.error('Speech recognition error', event.error);
-    this.isListening = false;
-    this.$notify({
-      title: 'Voice Input Error',
-      message: `Error: ${event.error}`,
-      type: 'error'
-    });
-  };
-
-  this.recognition.onend = () => {
-    if (this.isListening) {
-      // Restart recognition if still listening
-      try {
-        this.recognition.start();
-      } catch (e) {
-        console.error('Error restarting recognition:', e);
-      }
+  setupVoiceRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('Speech recognition not supported in this browser');
+      return;
     }
-  };
 
-  return true;
-},
+    this.recognition = new SpeechRecognition();
+    this.recognition.continuous = true;
+    this.recognition.interimResults = true;
+    this.recognition.maxAlternatives = 1;
+
+    this.recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0])
+        .map(result => result.transcript)
+        .join('');
+      
+      this.voiceInput = transcript;
+      this.processVoiceCommand(transcript);
+    };
+
+    this.recognition.onerror = (event) => {
+      console.error('Speech recognition error', event.error);
+      this.isListening = false;
+    };
+
+    this.recognition.onend = () => {
+      if (this.isListening) {
+        this.recognition.start();
+      }
+    };
+
+    // Define voice commands
+    this.voiceCommands = [
+      {
+        pattern: /^(set|select|choose) category (.*)/i,
+        action: (match) => this.setCategoryFromVoice(match[2])
+      },
+      {
+        pattern: /^(add|enter|set) item (.*)/i,
+        action: (match) => this.setItemNameFromVoice(match[2])
+      },
+      {
+        pattern: /^(set|enter) amount (.*)/i,
+        action: (match) => this.setAmountFromVoice(match[2])
+      },
+      {
+        pattern: /^submit|save|add expense/i,
+        action: () => this.handleSubmit()
+      },
+      {
+        pattern: /^help|what can i say/i,
+        action: () => this.showVoiceHelp()
+      }
+    ];
+  },
 
   startVoiceInput(field = null) {
-    if (!this.recognition && !this.setupVoiceRecognition()) {
-    return; // Already showed error message in setup
-  }
+    if (!this.recognition) {
+      alert('Voice recognition is not supported in your browser');
+      return;
+    }
 
-  this.stopVoiceInput();
-  this.voiceInputActiveField = field;
-  this.isListening = true;
-  this.voiceInput = '';
-  
-  try {
-    this.recognition.start();
-    this.$notify({
-      title: 'Listening',
-      message: 'Speak now...',
-      type: 'info',
-      duration: 2000
-    });
-  } catch (err) {
-    console.error('Speech recognition error:', err);
-    this.isListening = false;
-    this.$notify({
-      title: 'Microphone Error',
-      message: "Couldn't access microphone. Please check permissions.",
-      type: 'error'
-    });
-  }
-},
+    this.stopVoiceInput();
+
+    this.voiceInputActiveField = field;
+    this.isListening = true;
+    this.voiceInput = ''; 
+    try {
+      this.recognition.start();
+      this.$toast.info("Listening... Speak now");
+    } catch (err) {
+      console.error('Speech recognition error:', err);
+      this.$toast.error("Error starting voice recognition");
+      this.isListening = false;
+    }
+  },
 
   stopVoiceInput() {
     if (this.isListening) {
@@ -1251,11 +1234,7 @@ export default {
       } catch (err) {
         console.error('Error stopping recognition:', err);
       }
-      this.$notify({
-        title: 'Stopped',
-        message: 'Voice input stopped',
-        type: 'info'
-      });
+      this.$toast.info("Stopped listening");
     }
   },
 
@@ -1278,70 +1257,56 @@ export default {
         case 'amount':
           this.handleAmountInput(transcript);
           break;
-        case 'customType':
-          this.handleCustomTypeInput(transcript);
-          break;
+          case 'customType': 
+    this.handleCustomTypeInput(transcript);
+    break;
       }
-      this.stopVoiceInput();
+      this.stopVoiceInput(); // Auto-stop after field input
       return;
     }
 
-    this.handleGeneralCommands(transcript);
+ this.handleGeneralCommands(transcript);
   },
 
   handleCategoryInput(transcript) {
     const category = this.matchCategory(transcript);
     this.newExpense.expense_type = category;
-    this.$notify({
-      title: 'Category Set',
-      message: `Category set to: ${category}`,
-      type: 'success'
-    });
+    this.$toast.success(`Category set to: ${category}`);
   },
+
+  handleCustomTypeInput(transcript) {
+  this.customExpenseType = transcript;
+  this.$toast.success(`Custom type set to: ${transcript}`);
+},
 
   handleItemInput(transcript) {
     this.newExpense.item_name = transcript;
-    this.$notify({
-      title: 'Item Set',
-      message: `Item set to: ${transcript}`,
-      type: 'success'
-    });
+    this.$toast.success(`Item set to: ${transcript}`);
   },
 
   handleAmountInput(transcript) {
     const amount = this.extractNumber(transcript);
     if (amount !== null) {
       this.newExpense.item_price = amount;
-      this.$notify({
-        title: 'Amount Set',
-        message: `Amount set to: ${this.formatPHP(amount)}`,
-        type: 'success'
-      });
+      this.$toast.success(`Amount set to: ${this.formatPHP(amount)}`);
     } else {
-      this.$notify({
-        title: 'Error',
-        message: "Couldn't understand the amount. Please try again.",
-        type: 'error'
-      });
+      this.$toast.error("Couldn't understand the amount. Please try again.");
     }
   },
 
-  handleCustomTypeInput(transcript) {
-    this.customExpenseType = transcript;
-    this.$notify({
-      title: 'Custom Type Set',
-      message: `Custom type set to: ${transcript}`,
-      type: 'success'
-    });
-  },
-
   handleGeneralCommands(transcript) {
-    // Command: Set category
     if (transcript.startsWith('set category ') || transcript.startsWith('select category ')) {
       const category = transcript.replace(/^(set|select) category /i, '').trim();
       this.handleCategoryInput(category);
       return;
     }
+
+    if (transcript.startsWith('set custom type ') || 
+    transcript.startsWith('enter custom type ')) {
+  const customType = transcript.replace(/^(set|enter) custom type /i, '').trim();
+  this.handleCustomTypeInput(customType);
+  return;
+}
     
     // Command: Add item
     if (transcript.startsWith('add item ') || transcript.startsWith('set item ')) {
@@ -1357,16 +1322,9 @@ export default {
       return;
     }
     
-    // Command: Set custom type
-    if (transcript.startsWith('set custom type ') || transcript.startsWith('enter custom type ')) {
-      const customType = transcript.replace(/^(set|enter) custom type /i, '').trim();
-      this.handleCustomTypeInput(customType);
-      return;
-    }
-    
     // Command: Submit
     if (transcript.includes('submit') || transcript.includes('save')) {
-      this.submitExpense();
+      this.handleSubmit();
       return;
     }
     
@@ -1383,49 +1341,51 @@ export default {
     }
     
     // Fallback - if we don't recognize the command
-    this.$notify({
-      title: 'Not Recognized',
-      message: "Command not recognized. Say 'help' for available commands.",
-      type: 'info'
-    });
+    this.$toast.info("Command not recognized. Say 'help' for available commands.");
   },
 
   matchCategory(spokenCategory) {
-    const categories = ['Food', 'Bill', 'Transportation', 'Entertainment', 'Healthcare', 'Shopping', 'Other'];
-    const lowerSpoken = spokenCategory.toLowerCase().trim();
-    
-    // 1. First check for exact match
-    const exactMatch = categories.find(cat => cat.toLowerCase() === lowerSpoken);
-    if (exactMatch) return exactMatch;
-    
-    // 2. Fuzzy matching for each category
-    if (['food', 'eat', 'meal', 'restaurant', 'groceries', 'dining', 'lunch', 'dinner', 'breakfast', 'snack'].some(term => lowerSpoken.includes(term))) {
-      return 'Food';
-    }
-    
-    if (['bill', 'payment', 'rent', 'electric', 'water', 'internet', 'phone', 'utility', 'subscription', 'mortgage'].some(term => lowerSpoken.includes(term))) {
-      return 'Bill';
-    }
-    
-    if (['transport', 'bus', 'train', 'taxi', 'gas', 'fuel', 'parking', 'metro', 'subway', 'uber', 'lyft', 'car', 'maintenance'].some(term => lowerSpoken.includes(term))) {
-      return 'Transportation';
-    }
-    
-    if (['entertain', 'movie', 'game', 'concert', 'hobby', 'sport', 'netflix', 'spotify', 'music', 'party', 'bar', 'alcohol'].some(term => lowerSpoken.includes(term))) {
-      return 'Entertainment';
-    }
-    
-    if (['health', 'doctor', 'hospital', 'pharmacy', 'medicine', 'drug', 'insurance', 'dental', 'optical', 'checkup', 'clinic'].some(term => lowerSpoken.includes(term))) {
-      return 'Healthcare';
-    }
-    
-    if (['shop', 'clothes', 'gift', 'mall', 'store', 'amazon', 'online', 'purchase', 'buy', 'market'].some(term => lowerSpoken.includes(term))) {
-      return 'Shopping';
-    }
-    
-    // 3. Default fallback
+  const categories = ['Food', 'Bill', 'Transportation', 'Entertainment', 'Accomodation', 'Shopping', 'Other'];
+  const lowerSpoken = spokenCategory.toLowerCase().trim();
+  
+  // 1. First check for exact match
+  const exactMatch = categories.find(cat => cat.toLowerCase() === lowerSpoken);
+  if (exactMatch) return exactMatch;
+  
+  // 2. Fuzzy matching for each category
+  if (['food', 'eat', 'meal', 'restaurant', 'groceries', 'dining', 'lunch', 'dinner', 'breakfast', 'snack'].some(term => lowerSpoken.includes(term))) {
+    return 'Food';
+  }
+  
+  if (['bill', 'payment', 'rent', 'electric', 'water', 'internet', 'phone', 'utility', 'subscription', 'mortgage'].some(term => lowerSpoken.includes(term))) {
+    return 'Bill';
+  }
+  
+  if (['transport', 'bus', 'train', 'taxi', 'gas', 'fuel', 'parking', 'metro', 'subway', 'uber', 'lyft', 'car', 'maintenance'].some(term => lowerSpoken.includes(term))) {
+    return 'Transportation';
+  }
+  
+  if (['entertain', 'movie', 'game', 'concert', 'hobby', 'sport', 'netflix', 'spotify', 'music', 'party', 'bar', 'alcohol'].some(term => lowerSpoken.includes(term))) {
+    return 'Entertainment';
+  }
+  
+  if (['Hotel', 'Dorm', 'Rent', 'pharmacy', 'medicine', 'drug', 'insurance', 'dental', 'optical', 'checkup', 'clinic'].some(term => lowerSpoken.includes(term))) {
+    return 'Healthcare';
+  }
+  
+  if (['shop', 'clothes', 'gift', 'mall', 'store', 'amazon', 'online', 'purchase', 'buy', 'market'].some(term => lowerSpoken.includes(term))) {
+    return 'Shopping';
+  }
+  
+  // 3. Amount detection patterns (optional)
+  if (/\d/.test(lowerSpoken)) {
+    // If the spoken text contains numbers but no category was matched
     return 'Other';
-  },
+  }
+  
+  // 4. Default fallback
+  return 'Other';
+},
 
   extractNumber(spokenAmount) {
     // Extract numbers like "twenty five pesos" -> 25
@@ -1471,13 +1431,24 @@ export default {
     return total > 0 ? total : null;
   },
 
-  showVoiceHelp() {
-    this.showVoiceHelpModal = true;
+  setCategoryFromVoice(category) {
+    const matchedCategory = this.matchCategory(category);
+    this.customExpenseType = matchedCategory;
+    this.$toast.success(`Category set to: ${matchedCategory}`);
   },
 
-    handleCategoryChange() {
-    if (this.newExpense.expense_type !== 'Other') {
-      this.customExpenseType = '';
+  setItemNameFromVoice(itemName) {
+    this.newExpense.item_name = itemName;
+    this.$toast.success(`Item name set to: ${itemName}`);
+  },
+
+  setAmountFromVoice(amount) {
+    const numericAmount = this.extractNumber(amount);
+    if (numericAmount) {
+      this.newExpense.item_price = numericAmount;
+      this.$toast.success(`Amount set to: ${this.formatPHP(numericAmount)}`);
+    } else {
+      this.$toast.error("Couldn't understand the amount");
     }
   },
 
@@ -2563,16 +2534,185 @@ showError(message) {
 
 <style scoped>
 /* Voice Input Styles */
+.voice-help-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.voice-help-content {
+  background-color: #fefefe;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 440px;
+  max-height: 70vh; /* Limit height to 70% of the viewport */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: modalFadeIn 0.3s ease-out;
+  font-family: "Segoe UI", sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.voice-help-header {
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
+  color: white;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.voice-help-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 5px;
+  transition: transform 0.2s;
+}
+
+.close-btn:hover {
+  transform: scale(1.2);
+}
+
+.voice-help-body {
+  padding: 18px 20px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.voice-command {
+  display: flex;
+  margin-bottom: 15px;
+  align-items: flex-start;
+}
+
+.command-prefix {
+  font-size: 1.4rem;
+  color: #6a9c89;
+  margin-right: 12px;
+}
+
+.command-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.command-example {
+  font-weight: 600;
+  color: #4f7a6b;
+  font-family: 'Courier New', monospace;
+  font-size: 0.93rem;
+}
+
+.command-description {
+  color: #555;
+  font-size: 0.88rem;
+}
+
+.voice-help-footer {
+  padding: 14px 20px;
+  background-color: #f0f2f1;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #ddd;
+}
+
+.btn-ok {
+  background-color: #6a9c89;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-ok:hover {
+  background-color: #4f7a6b;
+  transform: translateY(-2px);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.voice-help-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  font-size: 0.9rem;
+}
+
+.voice-help-btn:hover {
+  background: #8bbcae;
+}
+
+/* Animation */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .voice-help-content {
+    width: 95%;
+  }
+  
+  .command-details {
+    flex-direction: column;
+  }
+}
 .input-with-voice {
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.input-with-voice select,
-.input-with-voice input {
-  flex-grow: 1;
-  padding-right: 40px;
 }
 
 .voice-btn {
@@ -2594,166 +2734,58 @@ showError(message) {
 }
 
 .voice-btn.active {
-  color: #42b983;
+  background: #ff4444;
+  color: white;
   animation: pulse 1.5s infinite;
 }
 
 .voice-controls {
-  display: flex;
-  gap: 10px;
-  margin: 15px 0;
-  align-items: center;
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 
 .voice-control-btn {
-  padding: 8px 15px;
-  background-color: #f0f0f0;
+  padding: 10px 15px;
+  background: #4285f4;
+  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.2s;
-}
-
-.voice-control-btn:hover {
-  background-color: #e0e0e0;
-}
-
-.voice-control-btn.active {
-  background-color: #42b983;
-  color: white;
-}
-
-.voice-help-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background-color: #4285f4;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 100;
-  font-size: 1.2rem;
-}
-
-.voice-help-btn:hover {
-  background-color: #3367d6;
-}
-
-.voice-feedback {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #f8f8f8;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.voice-input-preview {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.voice-help-text {
-  font-size: 0.8em;
-  color: #666;
-}
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
-}
-
-/* Voice Help Modal */
-.voice-help-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.voice-help-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.voice-help-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.voice-help-header h3 {
-  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.2em;
-  cursor: pointer;
-  color: #666;
+.voice-control-btn.active {
+  background: #ff4444;
 }
 
-.voice-help-body {
-  margin-bottom: 15px;
-}
-
-.voice-command {
-  display: flex;
-  margin-bottom: 10px;
-}
-
-.command-prefix {
-  margin-right: 10px;
-  font-weight: bold;
-}
-
-.command-example {
-  font-weight: bold;
-  color: #42b983;
-}
-
-.command-description {
-  color: #666;
-}
-
-.voice-help-footer {
-  text-align: right;
-}
-
-.btn-ok {
-  padding: 8px 20px;
-  background-color: #42b983;
-  color: white;
-  border: none;
+.voice-feedback {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
   border-radius: 4px;
-  cursor: pointer;
-} /*NEWWWWWWWWWWW */
+  border: 1px solid #ddd;
+}
+
+.voice-input-preview {
+  font-style: italic;
+  color: #666;
+}
+
+.voice-help-text {
+  font-size: 0.8em;
+  color: #999;
+  margin-top: 5px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
 .no-budget {
   background-color: #f4f8f6;
   border: 1px dashed #b6cfc5;
@@ -4048,10 +4080,7 @@ Z
 
 .group-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
@@ -4060,35 +4089,32 @@ Z
 }
 
 .group-modal {
-  background-color: #ffffff;
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 16px;
   width: 85%;
-  max-width: 480px;
-  max-height: 60vh; /* Slightly smaller height */
+  max-width: 460px;
+  max-height: 60vh;
   overflow-y: auto;
   overflow-x: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.2);
   animation: modalFadeIn 0.3s ease-out;
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #BBD8A3 transparent; /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #6a9c89 transparent;
 }
 
-/* Custom Scrollbar for Webkit */
+/* Webkit scrollbar */
 .group-modal::-webkit-scrollbar {
   width: 6px;
 }
-.group-modal::-webkit-scrollbar-track {
-  background: transparent;
-}
 .group-modal::-webkit-scrollbar-thumb {
-  background-color: #537D5D;
+  background-color: #6a9c89;
   border-radius: 8px;
 }
 
 @keyframes modalFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-16px);
   }
   to {
     opacity: 1;
@@ -4097,72 +4123,68 @@ Z
 }
 
 .group-modal-header {
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  color: white;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #d3d3d3;
-  background-color: #BBD8A3;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
 }
 
 .group-modal-header h3 {
   margin: 0;
-  font-size: 1.4rem;
-  color: #5c5c5c;
+  font-size: 1.3rem;
 }
 
 .close-modal {
   background: none;
   border: none;
-  font-size: 1.5rem;
-  color: #5c5c5c;
+  font-size: 1.4rem;
+  color: white;
   cursor: pointer;
-  padding: 5px 8px;
+  padding: 6px;
   border-radius: 50%;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  transition: background-color 0.3s, transform 0.2s;
 }
-
 .close-modal:hover {
-  background-color: #d0f0c0;
+  background-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
 }
 
 .groups-list {
-  padding: 10px;
-  background-color: #f9f9f9;
+  padding: 14px;
+  background-color: #f7fdf9;
 }
 
 .group-item {
-  cursor: pointer;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: 10px;
-  background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color 0.25s, box-shadow 0.25s;
+  cursor: pointer;
 }
-
 .group-item:hover {
-  background-color: #e0f7e5;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  background-color: #e4f4ef;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .group-info h4 {
   margin: 0;
-  font-size: 1.1rem;
-  color: #2f6f45;
+  font-size: 1.05rem;
+  color: #4f7a6b;
 }
 
 .group-meta {
   margin-top: 4px;
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.85rem;
+  color: #6a9c89;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -4170,18 +4192,20 @@ Z
 
 .group-meta i {
   margin-right: 6px;
-  color: #537D5D;
+  color: #6a9c89;
 }
+
 .group-actions {
+  color: #4f7a6b;
   font-size: 1.2rem;
-  color: #537D5D;
   display: flex;
   align-items: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s;
 }
 .group-item:hover .group-actions {
   transform: translateX(4px);
 }
+
 
 .group-modal-content {
   padding: 18px;
@@ -4823,8 +4847,12 @@ Z
   justify-content: center;
   align-items: center;
   padding: 30px;
-  border-bottom: 1px solid #2e4e38;
-  background-color: #7dc887;  
+  border-bottom: 3px solid #4f7a6b;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  box-shadow: inset 0 -4px 6px rgba(0,0,0,0.1);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .modal-header h3 {
@@ -4832,15 +4860,25 @@ Z
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
+  font-size: 1.6rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 .modal-header .close-button {
   position: absolute;
-  right: 10px;
+  right: 15px;
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   cursor: pointer;
-  color: black;
+  color: #e4f9e4;
+  transition: color 0.3s ease;
+  padding: 5px;
+  border-radius: 50%;
+}
+
+.modal-header .close-button:hover {
+  color: #f9fefc;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .modal-body {
