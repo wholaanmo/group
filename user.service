@@ -1,6 +1,30 @@
 const pool = require('../../config/database');
 
 module.exports = {
+    invalidateToken: async (userId) => {
+        try {
+            await pool.execute(
+                'UPDATE users SET token_valid = FALSE WHERE id = ?',
+                [userId]
+            );
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    isTokenValid: async (userId) => {
+        try {
+            const [results] = await pool.execute(
+                'SELECT token_valid FROM users WHERE id = ?',
+                [userId]
+            );
+            return results[0]?.token_valid !== 0; //invalid 0
+        } catch (error) {
+            throw error;
+        }
+    },
+
     checkUsernameExists: async (username) => {
         try {
             const [results] = await pool.execute(
@@ -134,7 +158,7 @@ module.exports = {
             throw error;
         }
     },
-    
+
     updateLoginInfo: async (userId) => {
         try {
             // First get current login count to determine if this is first login
