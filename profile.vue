@@ -595,12 +595,30 @@ updateExpenseView() {
     closeModal() {
     this.showLogoutModal = false;
     },
+    
     performLogout() {
+    const token = localStorage.getItem('jsontoken');
+    
+    this.$axios.post('http://localhost:3000/api/users/logout', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(() => {
         localStorage.clear();
+        sessionStorage.clear();
         this.$store.dispatch("logout");  
         this.showLogoutModal = false;
         this.$router.push("/login");
-      },
+    })
+    .catch(error => {
+        console.error('Logout error:', error);
+        // Still proceed with client-side cleanup
+        localStorage.clear();
+        sessionStorage.clear();
+        this.$store.dispatch("logout");  
+        this.showLogoutModal = false;
+        this.$router.push("/login");
+    });
+}
     },
 
     async mounted() {
