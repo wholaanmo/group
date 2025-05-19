@@ -133,5 +133,30 @@ module.exports = {
         } catch (error) {
             throw error;
         }
-    }
+    },
+    
+    updateLoginInfo: async (userId) => {
+        try {
+            // First get current login count to determine if this is first login
+            const [user] = await pool.execute(
+                'SELECT login_count FROM users WHERE id = ?', 
+                [userId]
+            );
+            
+            const isFirstLogin = user[0].login_count === 0;
+            
+            // Update login count and set first login date if needed
+            await pool.execute(
+                `UPDATE users 
+                 SET login_count = login_count + 1,
+                     first_login_date = IF(login_count = 0, NOW(), first_login_date)
+                 WHERE id = ?`,
+                [userId]
+            );
+            
+            return isFirstLogin;
+        } catch (error) {
+            throw error;
+        }
+    }   
 };
