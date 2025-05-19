@@ -1,6 +1,75 @@
 const pool = require('../../config/database');
 
 module.exports = {
+    deleteUser: async (id) => {
+        const connection = await pool.getConnection();
+        try {
+            console.log(`[DELETE USER] Starting deletion for user ${id}`);
+            
+            // First verify user exists
+            const [verifyUser] = await connection.execute(
+                'SELECT id FROM users WHERE id = ?',
+                [id]
+            );
+            
+            if (verifyUser.length === 0) {
+                console.log(`User ${id} not found in initial check`);
+                return null;
+            }
+    
+            await connection.beginTransaction();
+
+            // 2. Delete user's contributions
+        await connection.execute('DELETE FROM contributions WHERE user_id = ?', [id]);
+
+        // 3. Delete user's group expenses
+        await connection.execute('DELETE FROM group_expenses WHERE user_id = ?', [id]);
+
+        // 4. Remove user from groups
+        await connection.execute('DELETE FROM group_members WHERE user_id = ?', [id]);
+
+        // 5. Delete user's group budgets
+        await connection.execute('DELETE FROM group_budgets WHERE user_id = ?', [id]);
+
+        // 6. Delete user's personal expenses
+        await connection.execute('DELETE FROM expenses WHERE userId = ?', [id]);
+
+        // 7. Delete user's personal budgets
+        await connection.execute('DELETE FROM personal_budgets WHERE user_id = ?', [id]);
+
+        // 8. Handle groups created by the user
+        const [groups] = await connection.execute(
+            'SELECT id FROM groups WHERE created_by = ?', 
+            [id]
+        );
+        
+        for (const group of groups) {
+            await connection.execute('DELETE FROM contributions WHERE group_id = ?', [group.id]);
+            await connection.execute('DELETE FROM group_expenses WHERE group_id = ?', [group.id]);
+            await connection.execute('DELETE FROM group_members WHERE group_id = ?', [group.id]);
+            await connection.execute('DELETE FROM group_budgets WHERE group_id = ?', [group.id]);
+            await connection.execute('DELETE FROM groups WHERE id = ?', [group.id]);
+        }
+
+        // 9. Finally delete the user
+        const [results] = await connection.execute(
+            'DELETE FROM users WHERE id = ?',
+            [id]
+        );
+        
+        await connection.commit();
+        console.log(`Successfully deleted user ${id}`);
+        return results;
+    } catch (error) {
+        await connection.rollback();
+        console.error('Transaction error:', error);
+        throw error;
+    } finally {
+        connection.release();
+    }
+},
+
+
     invalidateToken: async (userId) => {
         try {
             await pool.execute(
@@ -136,17 +205,6 @@ module.exports = {
         }
     },
 
-    deleteUser: async (id) => {
-        try {
-            const [results] = await pool.execute(
-                'DELETE FROM users WHERE id = ?',
-                [id]
-            );
-            return results;
-        } catch (error) {
-            throw error;
-        }
-    },
     getUserByUserEmail: async (email) => {
         try {
             const [results] = await pool.execute(
