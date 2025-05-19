@@ -114,6 +114,31 @@
     </div>
   </div>
 </div>
+
+<div class="account-deletion-container">
+  <h2><i class="fas fa-exclamation-triangle"></i> Account Management</h2>
+  <div class="deletion-warning">
+    <p><strong>⚠ Warning:</strong> Deleting your account will <u>permanently</u> remove all your data. This action cannot be undone.</p>
+    <button class="btn-delete" @click="showDeleteModal = true">
+      <i class="fas fa-trash-alt"></i> Delete My Account
+    </button>
+  </div>
+</div>
+</div>
+
+<div v-if="showDeleteModal" class="modal-backdrop2" @click.self="showDeleteModal = false">
+  <div class="modal-card2 deletion-modal">
+    <h3><i class="fas fa-exclamation-circle"></i> Confirm Account Deletion</h3>
+    <p>This will permanently delete your account and all associated data. This action <strong>cannot</strong> be undone.</p>
+    <div class="btn-row">
+      <button class="btn2 cancel2" @click="showDeleteModal = false">
+        <i class="fas fa-times-circle"></i> Cancel
+      </button>
+      <button class="btn2 confirm-delete" @click="deleteAccount">
+        <i class="fas fa-trash"></i> Delete Account
+      </button>
+    </div>
+  </div>
 </div>
 
     <!-- Welcome Modal -->
@@ -151,6 +176,7 @@ export default {
 
   data() {
     return {
+      showDeleteModal: false,
       showWelcomeModal: false,
       isFirstLogin: false,
       welcomeMessage: {
@@ -537,6 +563,77 @@ updateExpenseView() {
         duration: 0
       });
     },
+
+    async deleteAccount() {
+    try {
+        const token = localStorage.getItem('jsontoken');
+        
+        if (!token) {
+            this.$notify({
+                title: 'Error',
+                text: 'Missing authentication token',
+                type: 'error'
+            });
+            return;
+        }
+
+        // Debug: Log the token before sending
+        console.log('Token being sent:', token);
+
+        const response = await this.$axios.delete(
+    'http://localhost:3000/api/users',
+    {
+        headers: { 
+            Authorization: `Bearer ${token}` 
+        }
+    }
+);
+
+        if (response.data.success === 1) {
+            // Clear all client-side data
+            localStorage.clear();
+            sessionStorage.clear();
+            this.$store.dispatch("logout");
+            
+            this.$notify({
+                title: 'Account Deleted',
+                text: 'Your account has been permanently deleted',
+                type: 'success'
+            });
+            
+            setTimeout(() => {
+              this.$router.push("/about?deleted=true");
+            }, 1500);
+        } else {
+            this.$notify({
+                title: 'Deletion Failed',
+                text: response.data.message || 'Failed to delete account',
+                type: 'error'
+            });
+        }
+    } catch (error) {
+        console.error('Account deletion error:', error);
+        console.error('Error response:', error.response);
+        
+        let errorMessage = 'Failed to delete account';
+        if (error.response) {
+            if (error.response.status === 401) {
+                errorMessage = 'Session expired. Please login again.';
+            } else if (error.response.data && error.response.data.message) {
+                errorMessage = error.response.data.message;
+            }
+        }
+
+        this.$notify({
+            title: 'Deletion Failed',
+            text: errorMessage,
+            type: 'error'
+        });
+    } finally {
+        this.showDeleteModal = false;
+    }
+},
+
     async loadAllGroupsData() {
       try {
         const token = localStorage.getItem('jsontoken');
@@ -680,6 +777,138 @@ updateExpenseView() {
   * {
     box-sizing: border-box;
   }
+
+  /* Account Deletion Styles */
+  .account-deletion-container {
+  width: 100%;
+  max-width: 700px;
+  margin: 20px auto; /* Adds margin on left/right and top/bottom */
+  padding: 0px 80px 20px 80px;
+  background: #fff5f5;
+  border-radius: 12px;
+  border: 2px solid #ffcdd2;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.account-deletion-container h2 {
+  color: #c62828;
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deletion-warning {
+  margin-top: 10px;
+}
+
+.deletion-warning p {
+  color: #b71c1c;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.btn-delete {
+  background: #d32f2f;
+  color: #fff;
+  padding: 12px 24px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.btn-delete:hover {
+  background: #b71c1c;
+  transform: translateY(-2px);
+}
+
+/* Modal Specific Styles */
+.modal-backdrop2 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+
+.modal-card2.deletion-modal {
+  background: #fff;
+  max-width: 500px;
+  width: 100%;
+  padding: 25px 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.modal-card2 h3 {
+  color: #c62828;
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.modal-card2 p {
+  color: #444;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.btn-row {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.btn2 {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn2.cancel2 {
+  background: #eeeeee;
+  color: #333;
+}
+
+.btn2.cancel2:hover {
+  background: #e0e0e0;
+  transform: translateY(-1px);
+}
+
+.btn2.confirm-delete {
+  background: #d32f2f;
+  color: white;
+}
+
+.btn2.confirm-delete:hover {
+  background: #b71c1c;
+  transform: translateY(-1px);
+}
+
 
   .modal-backdrop {
   position: fixed;
