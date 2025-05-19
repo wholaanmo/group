@@ -4,16 +4,18 @@
     <div v-if="showBudgetExceededAlert" class="budget-alert">
       <div class="alert-content">
         <span class="alert-icon">⚠️</span>
-        <span>You have exceeded your monthly budget!</span>
+        <span>You have exceeded your monthly budget by {{ formatPHP(Math.abs(remainingBudget)) }}!</span>
         <button @click="dismissAlert" class="dismiss-btn">×</button>
       </div>
       </div>
 
       <div v-if="showDeleteConfirmation" class="floating-alert alert alert-warning" role="alert">
         <span class="alert-icon"><i class="fas fa-trash"></i></span>
-        <span style="margin-left: 25px;">Are you sure you want to delete this expense?</span>
-      <button @click="confirmDeleteExpense" class="btn btn-danger btn-sm ml-2">Yes</button>
-      <button @click="cancelDeleteExpense" class="btn btn-secondary btn-sm ml-1">No</button>
+        <span style="margin-left: 25px;">
+    Are you sure you want to delete {{ expenseToDelete?.item_name }} ({{ formatPHP(expenseToDelete?.item_price) }})?
+  </span>
+      <button @click="confirmDeleteExpense" class="btn-confirm">Yes</button>
+      <button @click="cancelDeleteExpense" class="btn-cancel1">No</button>
     </div>
 
     <div v-if="error" class="error-message">
@@ -231,7 +233,6 @@
         <div class="command-prefix">•</div>
         <div class="command-details">
           <span class="command-example">{{ command.example }}</span>
-          <span class="command-description">- {{ command.description }}</span>
         </div>
       </div>
     </div>
@@ -268,7 +269,7 @@
   <td>{{ formatDate(expense?.expense_date) }}</td>
   <td class="actions">
     <button @click="editExpense(expense)" class="edit-btn">Edit</button>
-    <button @click="deleteExpenseHandler(expense?.id)" class="delete-btn">Delete</button>
+    <button @click="deleteExpenseHandler(expense)" class="delete-btn">Delete</button>
                 </td>
                 </tr>
             </tbody>
@@ -336,32 +337,19 @@
        exchangeRateError: null,
        voiceCommandsHelp: [
       {
-        example: "'Set category [category name]'",
-        description: "Select expense category (Food, Bill, Transportation, etc.)"
+        example: "Click the voice recorder button before speaking, and click it again when you're done."
       },
       {
-    example: "'Set custom type [description]'",
-    description: "Enter a custom expense category description"
+        example: "Say the category (e.g., 'Transportation')."
   },
       {
-        example: "'Add item [item name]'",
-        description: "Enter item name (e.g., 'taxi fare', 'dinner')"
+        example: "If you selected 'Other', say your custom category (e.g., 'Pet supplies')."
       },
       {
-        example: "'Set amount [amount]'",
-        description: "Enter amount (e.g., 'fifty', 'one hundred twenty pesos')"
+        example: "Say the item name (e.g., 'Jeepney')." 
       },
       {
-        example: "'Submit'",
-        description: "Save the expense"
-      },
-      {
-        example: "'Stop'",
-        description: "Stop voice input"
-      },
-      {
-        example: "'Help'",
-        description: "Show this help dialog"
+        example: "Say the item price (e.g., 'eleven pesos')."
       }
     ]
      };
@@ -1460,13 +1448,19 @@ editExpense(expense) {
   });
 },
  
-async deleteExpenseHandler(id) {
-    this.showDeleteConfirmation = true;
-    this.expenseToDelete = id; // Save the id of the expense to be deleted
-  },
+async deleteExpenseHandler(expense) {
+  this.showDeleteConfirmation = true;
+  this.expenseToDelete = expense; // Store the entire expense object
+},
 
   confirmDeleteExpense() {
-    const id = this.expenseToDelete;
+    const id = this.expenseToDelete?.id;
+  if (!id) {
+    this.showExpenseSuccessMessage('No expense selected for deletion');
+    this.showDeleteConfirmation = false;
+    return;
+  }
+
     this.deleteExpense(id).then(result => {
       if (result.success) {
         this.showExpenseSuccessMessage('Expense deleted successfully!');
@@ -1545,6 +1539,41 @@ async deleteExpenseHandler(id) {
 
  
 <style scoped>
+.btn-confirm, .btn-cancel1 {
+  padding: 8px 15px;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
+  color: white;
+  box-shadow: 0 2px 5px rgba(106, 156, 137, 0.4);
+}
+.btn-cancel1 {
+  background: linear-gradient(135deg, #e57373, #d32f2f, #b71c1c);
+  color: white;
+  box-shadow: 0 2px 5px rgba(211, 47, 47, 0.4);
+}
+
+.btn-confirm:hover {
+  background: linear-gradient(135deg, #7aa98c, #5e8873, #486858);
+  box-shadow: 0 4px 10px rgba(74, 109, 92, 0.6);
+}
+
+.btn-cancel1:hover{
+  background: linear-gradient(135deg, #d32f2f, #b71c1c, #7f0000);
+  box-shadow: 0 4px 10px rgba(123, 0, 0, 0.6);
+}
+
 .voice-help-modal {
   position: fixed;
   top: 0;
@@ -1629,7 +1658,7 @@ async deleteExpenseHandler(id) {
 }
 
 .command-example {
-  font-weight: 600;
+  font-weight: 800;
   color: #4f7a6b;
   font-family: 'Courier New', monospace;
   font-size: 0.93rem;
@@ -1678,7 +1707,7 @@ async deleteExpenseHandler(id) {
 .voice-help-btn {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  right: 3px;
   background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
   color: white;
   border: none;
@@ -1921,15 +1950,20 @@ async deleteExpenseHandler(id) {
   background: none;
   border: none;
   color: #c62828;
-  font-size: 1.8em; /* Bigger button */
+  font-size: 1.8em;
   cursor: pointer;
-  margin-left: 20px;
-  padding: 0 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .dismiss-btn:hover {
+  background-color: rgba(198, 40, 40, 0.1); /* light red tint */
   color: #b71c1c;
+  transform: scale(1.05);
 }
+
+
 
 /* Floating Delete Confirmation Alert */
 .floating-alert {
@@ -2004,6 +2038,7 @@ async deleteExpenseHandler(id) {
 
 .budget-header {
   flex-wrap: wrap;
+  justify-content: space-between;
   display: flex;
   align-items: center;
   margin-bottom: 2px;
@@ -2200,7 +2235,7 @@ async deleteExpenseHandler(id) {
   transition: opacity 0.5s ease;
   font-size: 1rem;
 }
-
+  
 .budget-details {
   display: flex;
   flex-direction: column;
@@ -2209,7 +2244,6 @@ async deleteExpenseHandler(id) {
 
 .month-selector {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 10px;
@@ -2609,9 +2643,10 @@ td, th {
   font-size: 1.35rem;
   font-weight: 700;
   margin-bottom: 20px;
+  margin-top: 0;
   color: #ffffff;
   background: linear-gradient(135deg, #8bbcae, #4f7a6b);
-  padding: 10px 16px;
+  padding: 20px 16px;
   border-radius: 10px;
   position: relative;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -2722,7 +2757,7 @@ select[disabled] {
 
 @media (max-width: 1200px) {
   .month-selector span{
-    min-width: 50px;
+    min-width: 80px;
     padding: 10px;
     text-align: center;
     font-weight: bold;
@@ -2733,6 +2768,13 @@ select[disabled] {
   .top-row {
     flex-wrap: wrap;
     flex-direction: column;
+  }
+  .month-selector span{
+    min-width: 150px;
+    padding: 10px;
+  }
+  .expenses-container {
+    min-width: 340px;
   }
 }
 
