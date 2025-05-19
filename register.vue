@@ -126,10 +126,8 @@
                     <h4>4. Your Rights & Controls</h4>
                     <p>You can:</p>
                     <ul>
-                    <li>Export all expense data (CSV/JSON formats)</li>
+                    <li>Export all expense data (PDF format)</li>
                     <li>Permanently delete individual transactions or entire accounts</li>
-                    <li>Opt out of non-essential emails while keeping transaction alerts</li>
-                    <li>Request a full data audit report</li>
                     </ul>
                 </div>
                 </div>
@@ -388,43 +386,40 @@ export default {
     color: #00C851;
 }
 .policy-highlights {
-    margin: 2rem 0;
-    padding: 1.5rem;
-    background-color: #f1f4fb;
-    border-left: 4px solid #babac1;
-    border-radius: 8px;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #e4f3f0;
+  border-left: 4px solid #6a9c89;
+  border-radius: 6px;
 }
 
 .highlight-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 0.8rem;
 }
 
 .highlight-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.8rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: #36594e;
 }
 
 .highlight-icon {
-    font-size: 1.5rem;
-    line-height: 1;
+  font-size: 1.2rem;
 }
 
 .last-p {
-    color: #f11010;
+  margin-top: 1.2rem;
+  color: #bf3d3d;
+  font-size: 0.9rem;
 }
 
-h4 {
-    color: #058516;
-}
-
-.modal-content ul ul {
-    margin-left: 1.5rem;
-    margin-top: 0.5rem;
+.modal-content ul {
+  padding-left: 1.2rem;
 }
 
 .modal-content a {
@@ -435,7 +430,12 @@ h4 {
 .modal-content a:hover {
     text-decoration: underline;
 }
-    .privacy-policy-container {
+
+.modal-content li {
+  color: #3e554e;
+  font-size: 0.85rem;
+}
+.privacy-policy-container {
     margin: 15px 0;
     display: flex;
     align-items: center;
@@ -493,17 +493,15 @@ h4 {
 
 /* Modal Styles */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    animation: modalFadeIn 0.4s;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: modalFadeIn 0.4s;
+  padding: 10px;
 }
 
 @keyframes modalFadeIn {
@@ -512,78 +510,90 @@ h4 {
 }
 
 .modal-container {
-    background: #fff;
-    border-radius: 18px;
-    width: 90%;
-    max-width: 750px;
-    max-height: 75vh;
-    overflow-y: auto;
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
-    border: 1.5px solid #b6c6e6;
-    padding-bottom: 10px;
-    /* Add a slight scale-in effect */
-    animation: modalScaleIn 0.3s;
+  background: #f4fdfb;
+  border-radius: 14px;
+  width: 90%;
+  max-width: 680px;
+  max-height: 75vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(79, 122, 107, 0.2);
+  border: 1.5px solid #b9dcd2;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  animation: modalScaleIn 0.3s;
 }
 
 @keyframes modalScaleIn {
-    from { transform: scale(0.97); }
+    from { transform: scale(0.96); }
     to { transform: scale(1); }
 }
 
 .modal-header {
-    font-size: 22px;
-    color: #058516;
-    background: linear-gradient(90deg, #d0f9cd 0%, #f7ffe2 100%);
-    padding: 22px 24px 18px 24px;
-    border-bottom: 2px solid #058516;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #d9ede6, #eaf5f1);
+  color: #4f7a6b;
+  font-size: 1.1rem;
+  padding: 0px 20px;
+  border-bottom: 2px solid #6a9c89;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 14px 14px 0 0;
 }
 
 .modal-column {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .policy-section {
-  padding: 1rem;
-  border: 3px solid #c5fbda;
-  border-radius: 8px;
+  background: #edf8f5;
+  padding: 12px;
+  border: 2px solid #b8dcd0;
+  border-radius: 6px;
 }
 
+h2, h3 {
+  color: #4f7a6b;
+}
+
+h4 {
+  color: #6a9c89;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
 .modal-content {
-    padding: 28px 24px 18px 24px;
-    line-height: 1.7;
-    background: #f8fbff;
-    border-radius: 0 0 12px 12px;
+  padding: 20px;
+  background: #f8fbfa;
+  border-radius: 0 0 12px 12px;
 }
 
 .modal-footer {
-    padding: 18px 24px;
-    border-top: 1px solid #e3eaf7;
-    text-align: right;
-    background: #f8fbff;
-    border-radius: 0 0 18px 18px;
+  padding: 14px 20px;
+  border-top: 1px solid #d8eae5;
+  text-align: right;
+  background: #f1f9f7;
+  border-radius: 0 0 14px 14px;
 }
 
 .modal-close-btn {
-    background: #e3f9d3 ;
-    border: none;
-    font-size: 1.5em;
-    cursor: pointer;
-    color: #058516;
-    padding: 0.25em 0.7em;
-    border-radius: 50%;
-    transition: background 0.3s, color 0.3s;
-    margin-left: 10px;
+  background: linear-gradient(135deg, #cfeae2, #b5d8cc);
+  border: none;
+  font-size: 1em;
+  cursor: pointer;
+  color: #4f7a6b;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: background 0.3s, color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
+
 .modal-close-btn:hover {
-    background: #c1c7b1;
-    color: #222;
+  background: linear-gradient(135deg, #a3c5b8, #8bbcae);
+  color: white;
+  transform: scale(1.03);
 }
+
     
     .register-bg {
     background-image: url("/circle.png");
