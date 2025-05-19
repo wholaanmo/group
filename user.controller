@@ -6,7 +6,8 @@ const {
     deleteUser, 
     getUserByUserEmail,
     checkUsernameExists,
-    checkEmailExists
+    checkEmailExists,
+    updateLoginInfo 
 } = require ("../users/user.service");
 
 const {genSaltSync, hashSync, compareSync } = require("bcrypt");
@@ -197,6 +198,7 @@ login: async (req, res) => {
         
         const isPasswordValid = compareSync(body.password, results.password);
         if (isPasswordValid) {
+            const isFirstLogin = await updateLoginInfo(results.id);
             results.password = undefined;
             const jsontoken = sign({ userId: results.id }, "qwe1234", {
                 expiresIn: "5h",
@@ -206,7 +208,12 @@ login: async (req, res) => {
                 success: 1,
                 message: "Login successful",
                 token: jsontoken,
-                user: results,
+                user: {
+                    id: results.id,
+                    username: results.username, 
+                    email: results.email
+                },
+                isFirstLogin: isFirstLogin
             });
         } else {
             return res.json({
