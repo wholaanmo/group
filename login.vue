@@ -14,7 +14,7 @@
                       <input v-model="password" type="password" name="password" class="text-style" required>  
                   </div>
 
-                  <p style="color: red; margin-left: 15px;">{{ message }}</p>
+                  <p class="error">{{ message }}</p>
                   
                       <button type="submit" class="login-btn">SIGN IN</button>
                       <router-link to="/register" class="login-btn">SIGN UP</router-link>
@@ -229,13 +229,26 @@ background-color: #45a049;
 }
 
 .success {
-color: green;
-margin-top: 10px;
+    color: #00C851;
+    background-color: #e8f5e9;
+    border: 1px solid #00C851;
 }
 
 .error {
-color: red;
-margin-top: 10px;
+    color: #ff4444;
+    background-color: #ffebee;
+    border: 1px solid #ff4444;
+    padding: 5px;
+}
+
+@keyframes flash {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+.error {
+    animation: flash 1.5s infinite;
 }
  
   .login-bg {
