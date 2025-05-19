@@ -423,26 +423,30 @@ toggleYearFilter() {
     ...mapActions(['fetchViewExpenses', 'fetchPersonalBudgets', 'fetchExchangeRate']),
    
     checkFirstLogin() {
-    const userData = JSON.parse(localStorage.getItem("user"));
-    const welcomeShownKey = `welcomeShown_${userData.id}`;
-    
-    if (userData?.isFirstLogin && !localStorage.getItem(welcomeShownKey)) {
-        this.welcomeMessage = {
-            title: 'Welcome to Money Log 🎉',
-            content: 'Track your expenses, manage budgets, and join groups to share expenses with friends!'
-        };
-        // Update localStorage so we don't show first-time message again
-        userData.isFirstLogin = false;
-        localStorage.setItem("user", JSON.stringify(userData));
-    } else {
-        this.welcomeMessage = {
-            title: 'Welcome back! 👋',
-            content: 'Good to see you again! Ready to track your finances?'
-        };
-    }
-    
-    this.showWelcomeModal = true;
-},
+        const userData = JSON.parse(localStorage.getItem("user"));
+        
+        // Skip if already shown in this session
+        if (sessionStorage.getItem('welcomeShown')) return;
+
+        if (userData?.isFirstLogin) {
+            this.welcomeMessage = {
+                title: 'Welcome to Money Log 🎉',
+                content: 'Track your expenses, manage budgets, and join groups to share expenses with friends!'
+            };
+            // Mark as no longer first login
+            userData.isFirstLogin = false;
+            localStorage.setItem("user", JSON.stringify(userData));
+        } else {
+            this.welcomeMessage = {
+                title: 'Welcome back! 👋',
+                content: 'Good to see you again! Ready to track your finances?'
+            };
+        }
+
+        // Mark welcome as shown for this session
+        sessionStorage.setItem('welcomeShown', 'true');
+        this.showWelcomeModal = true;
+    },
 
     formatUsd(value) {
     const rate = this.$store.state.usdExchangeRate || 0.018045;
@@ -624,14 +628,16 @@ updateExpenseView() {
     async mounted() {
     const userData = JSON.parse(localStorage.getItem("user"));
     if (userData) {
-      this.userEmail = userData.email;
-      this.userName = userData.username;
+        this.userEmail = userData.email;
+        this.userName = userData.username;
     }
     await this.loadAllGroupsData();
-    setTimeout(() => {
-    this.checkFirstLogin();
-  }, 500);
-}
+    
+    // Only show welcome message if not already shown this session
+    if (!sessionStorage.getItem('welcomeShown')) {
+        this.checkFirstLogin();
+    }
+  }
 };
 </script>
 
