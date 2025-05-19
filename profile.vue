@@ -4,18 +4,12 @@
   <div class="content-wrapper">
     <!-- PROFILE CONTAINER (TOP) -->
     <div class="profile-container">
-      <div class="logout-wrapper">
+      <div class="profile-header">
+        <h2><i class="fas fa-user"></i> PROFILE INFORMATION</h2>
         <button class="logout-icon" @click="showLogoutModal = true">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round" class="icon">
-            <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0
-                    005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0
-                    002.25-2.25V15m0-3H3m0 0l3-3m-3 3l3 3" />
-          </svg>
+          <i class="fas fa-sign-out-alt icon"></i>
         </button>
       </div>
-      <h2><i class="fas fa-user"></i> PROFILE INFORMATION</h2>
       <div class="info">
         <p><strong>Username: {{ userName }}</strong></p>
         <p><strong>Email: {{ userEmail }}</strong></p>
@@ -49,9 +43,8 @@
         </div>
 
         <div class="summary-box">
-          <h3>Budget Summary</h3>
           <div class="summary-item">
-            <span>Budget:</span>
+            <span>Total Budget:</span>
             <span>{{ formatCurrency(currentBudget?.budget_amount || 0) }}</span>
           </div>
 
@@ -90,11 +83,38 @@
             </option>
           </select>
         </div>
-        <p><strong>Group Budget: {{ parseFloat(groupBudget) }}</strong></p>
-        <p><strong>Group Expenses: {{ parseFloat(groupExpenses) }}</strong></p>
-        <p><strong>Remaining Budget: {{ parseFloat(groupRemainingDisplay) }}</strong></p>
-      </div>
+        <div class="summary-box">
+          <div class="summary-item">
+      <span>Group Budget:</span>
+      <span>{{ formatCurrency(groupBudget) }}</span>
     </div>
+    
+    <div class="summary-item">
+      <span>Group Expenses:</span>
+      <span>{{ formatCurrency(groupExpenses) }}</span>
+    </div>
+    
+    <div class="summary-item remaining">
+      <span>Remaining Budget:</span>
+      <span :class="{ 'negative': groupRemaining < 0 }">
+        {{ formatCurrency(groupRemaining) }}
+      </span>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+      <div 
+        class="progress" 
+        :class="{ 'exceeded': isGroupBudgetExceeded }"
+        :style="{ width: groupBudgetPercentage + '%' }"
+      ></div>
+    </div>
+    <div class="percentage" :class="{ 'exceeded-text': isGroupBudgetExceeded }">
+      {{ groupBudgetPercentage.toFixed(0) }}%
+    </div>
+  </div>
+</div>
+</div>
 
     <!-- Welcome Modal -->
 <div v-if="showWelcomeModal" class="modal-backdrop" @click.self="showWelcomeModal = false">
@@ -161,6 +181,19 @@ export default {
     computed: {
     ...mapGetters(['getViewExpenses', 'getPersonalBudgets', 'getViewPageMonthYear']),
     
+    groupRemaining() {
+    return this.groupBudget - this.groupExpenses;
+  },
+
+  groupBudgetPercentage() {
+    if (this.groupBudget <= 0) return 0;
+    return Math.min(100, (this.groupExpenses / this.groupBudget) * 100);
+  },
+
+  isGroupBudgetExceeded() {
+    return this.groupExpenses > this.groupBudget;
+  },
+
     totalExpenses() {
     return this.filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   },
@@ -431,7 +464,7 @@ toggleYearFilter() {
         if (userData?.isFirstLogin) {
             this.welcomeMessage = {
                 title: 'Welcome to Money Log 🎉',
-                content: 'Track your expenses, manage budgets, and join groups to share expenses with friends!'
+                content: 'Track your expenses, manage budgets, and join groups to share expenses with others!'
             };
             // Mark as no longer first login
             userData.isFirstLogin = false;
@@ -724,7 +757,7 @@ updateExpenseView() {
   }
 }
 
-  .month-year-selector {
+.month-year-selector {
   margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
@@ -746,63 +779,63 @@ updateExpenseView() {
 .year-selector select {
   padding: 0.5rem;
   border-radius: 6px;
-  border: 1px solid #ccc;
-  background: #f9f9f9;
-  color: #486858;
+  border: 1px solid #bdd9cd;
+  background: #f9fcfb;
+  color: #4f7a6b;
   font-size: 1rem;
+  font-weight: 500;
+  transition: border 0.2s ease;
+}
+
+.year-selector select:focus {
+  outline: none;
+  border-color: #6a9c89;
 }
 
 .month-buttons {
   display: grid;
-  grid-template-columns: repeat(6, 1fr); /* 6 columns */
-  grid-template-rows: repeat(2, auto);   /* 2 rows */
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, auto);
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .month-buttons button {
   padding: 0.5rem 1rem;
-  border: 1px solid #ccc;
+  border: 2px solid #c5e0d5;
   border-radius: 6px;
-  background: white;
-  color: #486858;
+  background: #f7fbfa;
+  color: #4f7a6b;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .month-buttons button:hover {
-  background: #e5f0ea;
-  border-color: #7aa98c;
+  background: #e2f2eb;
+  border-color: #6a9c89;
+  color: #3f6557;
 }
 
 .month-buttons button.active {
-  background: #5e8873;
-  color: white;
-  border-color: #5e8873;
+  background: #4f7a6b;
+  color: #ffffff;
+  border-color: #4f7a6b;
 }
 
 .summary-box {
-  background: linear-gradient(to bottom right, #f9fdfb, #eaf5ee);
+  background: linear-gradient(135deg, #f9fdfb, #ecf9f4, #def4ec);
   border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
   margin-bottom: 1.5rem;
-  border: 1px solid #dceee3;
-  transition: box-shadow 0.3s ease;
+  border: 1px solid #e0f1e9;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+  backdrop-filter: blur(1px);
 }
 
 .summary-box:hover {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-}
-
-.summary-box h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #486858;
-  font-size: 1.4rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .summary-item {
@@ -810,12 +843,13 @@ updateExpenseView() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
-  padding: 0.4rem 0;
-  color: #486858;
+  padding: 0.4rem 0.6rem;
+  color: #4f7a6b;
   font-size: 1rem;
   font-weight: 500;
   letter-spacing: 0.3px;
-  border-bottom: 1px dashed #d3e4da;
+  border-bottom: 1px dashed #cde1d5;
+  border-radius: 6px;
   transition: background 0.2s ease;
 }
 
@@ -828,7 +862,7 @@ updateExpenseView() {
   font-weight: bold;
   margin-top: 1rem;
   padding-top: 0.5rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid #e2eee7;
   color: #486858;
 }
 
@@ -842,14 +876,16 @@ updateExpenseView() {
   border-radius: 6px;
   margin-top: 1rem;
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .progress {
   height: 100%;
-  background: #7aa98c;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
   transition: width 0.3s ease;
 }
 
+/* Red color if the value exceeds limit */
 .progress.exceeded {
   background: #f44336;
 }
@@ -858,7 +894,8 @@ updateExpenseView() {
   text-align: right;
   margin-top: 0.25rem;
   font-size: 0.85rem;
-  color: #666;
+  color: #4f7a6b;
+  font-weight: 500;
 }
 
 .percentage.exceeded-text {
@@ -874,37 +911,30 @@ updateExpenseView() {
 }
   
 .profile-container {
-  background: #ffffff;
+  background: linear-gradient(135deg, #f9fdfb, #ecf9f4, #def4ec);
   padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
   margin: 100px 10px 20px 20px;
   position: relative;
   border-left: 6px solid #6a9c89;
-  transition: box-shadow 0.3s ease;
-}
-  
-.profile-container:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
-.profile-container h2 {
-  font-family: 'Poppins', sans-serif;
-  font-size: 28px;
-  color: #4f7a6b;
-  margin-bottom: 24px;
-  border-bottom: 2px solid #8bbcae;
-  padding-bottom: 10px;
+.profile-container:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
 }
-  
+
 .profile-container .info p {
   margin: 12px 0;
   font-family: 'Poppins', sans-serif;
-  font-size: 16px;
+  font-size: 19px;
   font-style: italic;
   color: #333;
+  padding-left: 10px;
+  border-left: 3px solid #6a9c89;
 }
-
 .main-content {
   display: flex;
   gap: 24px;
@@ -914,64 +944,35 @@ updateExpenseView() {
 
 .personal-summary {
   flex: 2;
-  background: #ffffff;
+  background: linear-gradient(135deg, #fdfdfd, #f5faf7);
   padding: 30px 30px 15px 30px; /* top right bottom left */
   border-radius: 12px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
   border-left: 6px solid #6a9c89;
-  transition: box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
 }
 
 .personal-summary:hover {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
-  .columns {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-    margin-top: 10px;
-    padding: 0 10px 10px;
-    width: 100%;
-  }
+  .info strong {
+  font-style: normal;
+  color: #4f7a6b;
+}
 
-  .column1 {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: 1rem;
-    padding: 10px;
-    width: 100%;
-    box-shadow: 0 0 8px 0 rgba(21, 90, 3, 0.6);
-    border-radius: 10px;
-    flex: 1;
-    margin-bottom: 20px;
-  }
+.infos {
+  gap: 1.5rem;
+  margin-top: 20px;
+  margin-left: 15px;
+  text-align: start;
+}
 
-  .column {
-    border-radius: 10px;
-    box-shadow: 0 0 8px 0 rgba(21, 90, 3, 0.6);
-    flex: 1;
-    height: 250px;
-    margin-top: 1rem;
-    margin-bottom: 20px;
-    max-width: 30%;
-  }
-
-  .info strong{
-    font-style: normal;
-  }
-
-  .infos{
-    gap: 1.5rem;
-    margin-top: 20px;
-    margin-left: 15px;
-    text-align: start;
-  }
+.infos strong {
+  font-size: 16px;
+}
   
-  .infos strong{
-    font-size: 14px;
-  }
   .group-summary {
   flex: 1;
   background: #ffffff;
@@ -980,9 +981,7 @@ updateExpenseView() {
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
   border-left: 6px solid #8bbcae;
   transition: box-shadow 0.3s ease;
-
-  max-height: 350px; /* adjust this value */
-  overflow-y: auto;  /* scroll if content is longer */
+  max-height: 410px; 
 }
 
 .group-summary:hover {
@@ -1018,7 +1017,7 @@ updateExpenseView() {
 .group-selector select {
   padding: 8px 12px;
   font-size: 14px;
-  border: 1px solid #6a9c89;
+  border: 2px solid #6a9c89;
   border-radius: 6px;
   font-family: 'Poppins', sans-serif;
   max-width: 160px;
@@ -1036,13 +1035,15 @@ updateExpenseView() {
 .section-title {
   width: 100%;
   margin-bottom: 20px;
+  margin-top: 0px;
   font-family: "Poppins", sans-serif;
   font-weight: 600;
-  font-size: 22px;
+  font-size:30px;
   text-align: center;
   color: #4f7a6b;
   border-bottom: 2px solid #8bbcae;
   padding-bottom: 6px;
+  letter-spacing: 0.5px;
 }
 
 .year-selector {
@@ -1061,42 +1062,61 @@ updateExpenseView() {
 
 .year-selector select {
   padding: 8px 12px;
-  border: 1px solid #6a9c89;
+  border: 2px solid #6a9c89;
   border-radius: 6px;
   font-family: "Poppins", sans-serif;
   font-size: 14px;
   color: #2a4935;
   background-color: #f9fdf9;
 }
-.logout-wrapper {
-  position: absolute;
-  top: 15px;    /* Adjust top spacing */
-  right: 15px;  /* Adjust right spacing */
-  z-index: 10;
+
+
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #8bbcae;  
+  padding-bottom: 10px;
+  position: relative;
+}
+
+.profile-header h2 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 28px;
+  color: #4f7a6b;
+  border-bottom: 0px solid white;
+  padding-bottom: 10px;
+  margin: 0; 
+  line-height: 1; 
+  position: relative;
+  z-index: 1;
 }
 
 .logout-icon {
-  background: #4f7a6b;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
   border: none;
   cursor: pointer;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
-  transition: background 0.3s ease;
+  box-shadow: 0 4px 10px rgba(106, 156, 137, 0.3);
+  transition: background 0.3s ease, transform 0.2s ease;
 }
 
 .logout-icon:hover {
-  background: #3d5e52;
+  background: #4f7a6b;
+  transform: scale(1.05);
 }
 
 .logout-icon .icon {
-  width: 24px;
-  height: 24px;
-  stroke: #ffffff;
+  font-size: 20px;
+  color: #ffffff;
   transition: transform 0.2s ease;
 }
 
