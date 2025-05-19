@@ -18,6 +18,96 @@ const { sign } = require ("jsonwebtoken");
 const pool = require("../../config/database");
 
 module.exports = {
+    deleteAccount: async (req, res) => {
+        try {
+            const userId = req.user.userId;
+            console.log(`Starting account deletion for user ${userId}`);
+    
+            // Verify the user exists before proceeding
+            const [user] = await pool.execute(
+                'SELECT id FROM users WHERE id = ?',
+                [userId]
+            );
+    
+            if (user.length === 0) {
+                console.log(`User ${userId} not found in database`);
+                return res.status(404).json({
+                    success: 0,
+                    message: "User not found"
+                });
+            }
+    
+            // Invalidate token
+            console.log(`Invalidating tokens for user ${userId}`);
+            await invalidateToken(userId);
+            
+            // Delete user
+            console.log(`Deleting user ${userId}`);
+            const results = await deleteUser(userId);
+            
+            if (!results) {
+                console.log(`No results returned for user ${userId}`);
+                return res.status(404).json({
+                    success: 0,
+                    message: "User not found during deletion"
+                });
+            }
+            
+            if (results.affectedRows === 0) {
+                console.log(`No rows affected for user ${userId}`);
+                return res.status(404).json({
+                    success: 0,
+                    message: "User not found or already deleted"
+                });
+            }
+            
+            console.log(`Successfully deleted user ${userId}`);
+            return res.json({
+                success: 1,
+                message: "Account deleted successfully"
+            });
+        } catch (err) {
+            console.error('Account deletion error:', err);
+            return res.status(500).json({
+                success: 0,
+                message: err.message || "Failed to delete account"
+            });
+        }
+    },
+
+    deleteUser: async (req, res) => {
+        try {
+            const id = req.params.id;
+            const results = await deleteUser(id);
+            
+            if (!results || results.affectedRows === 0) {
+                return res.status(404).json({
+                    success: 0,
+                    message: "User not found"
+                });
+            }
+            
+            return res.json({
+                success: 1,
+                message: "User deleted successfully"
+            });
+        } catch (err) {
+            console.error(err);
+            
+            if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+                return res.status(400).json({
+                    success: 0,
+                    message: "Cannot delete user - please delete related data first"
+                });
+            }
+            
+            return res.status(500).json({
+                success: 0,
+                message: "Database error"
+            });
+        }
+    },
+
     createUser: async (req, res) => {
         try {
         const body = req.body;
