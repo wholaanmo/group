@@ -8,6 +8,11 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
+const groupPhotosDir = path.join(__dirname, '../../uploads/group-photos');
+if (!fs.existsSync(groupPhotosDir)) {
+  fs.mkdirSync(groupPhotosDir, { recursive: true });
+}
+
 const upload = multer({
   dest: 'uploads/tmp/', // temporary storage
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
@@ -463,7 +468,7 @@ router.route('/groups/:groupId/photos')
 
   router.post('/groups/:groupId/photos', 
   groupAuth('member'), 
-  upload.single('photo'), // This handles the file upload
+  upload.single('photo'),
   async (req, res) => {
     try {
       if (!req.file) {
@@ -479,40 +484,31 @@ router.route('/groups/:groupId/photos')
       const filename = `${Date.now()}${ext}`;
       const uploadPath = path.join(__dirname, '../../uploads/group-photos', filename);
       
-      // Ensure upload directory exists
-      if (!fs.existsSync(path.dirname(uploadPath))) {
-        fs.mkdirSync(path.dirname(uploadPath), { recursive: true });
-      }
-      
       // Move file from temp to permanent location
       fs.renameSync(req.file.path, uploadPath);
-      const imageUrl = `/uploads/group-photos/${filename}`; 
+      
+      // Use forward slashes for URL consistency
+      const imageUrl = `/uploads/group-photos/${filename}`;
       
       // Save to database
       const [result] = await pool.query(
         `INSERT INTO group_photos 
           (group_id, user_id, image_url, description) 
          VALUES (?, ?, ?, ?)`,
-        [groupId, userId, `/uploads/group-photos/${filename}`, description]
+        [groupId, userId, imageUrl, description]
       );
       
-      const [newPhoto] = await pool.query(
-        `SELECT 
-          gp.id,
-          gp.image_url,
-          gp.description,
-          gp.created_at,
-          u.username
-         FROM group_photos gp
-         JOIN users u ON gp.user_id = u.id
-         WHERE gp.id = ?`,
-        [result.insertId]
-      );
+      // Return full URL in response
+      const fullImageUrl = `${req.protocol}://${req.get('host')}${imageUrl}`;
       
       return res.json({ 
         success: 1, 
         message: 'Photo uploaded successfully',
-        photo: newPhoto[0]
+        photo: {
+          id: result.insertId,
+          image_url: fullImageUrl,
+          description
+        }
       });
     } catch (err) {
       console.error('Error uploading photo:', err);
