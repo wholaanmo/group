@@ -4,6 +4,20 @@ const groupBudgetController = require('../grp_expenses/group-budget.controller')
 const { checkToken } = require('../../auth/token_validation');
 const groupAuth = require('../../auth/groupAuth');
 const pool = require('../../config/database');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+const upload = multer({
+  dest: 'uploads/tmp/', // temporary storage
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, '../../uploads/tmp');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 router.use(checkToken);
 // Budget routes
@@ -419,4 +433,154 @@ router.put('/groups/:groupId/contributions/:contributionId/status', groupAuth('m
     return res.status(500).json({ success: 0, message: 'Failed to update status' });
   }
 });
+
+router.route('/groups/:groupId/photos')
+  .get(groupAuth('member'), async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      
+      const [photos] = await pool.query(
+        `SELECT 
+          gp.id,
+          gp.image_url,
+          gp.description,
+          gp.created_at,
+          u.id as user_id,
+          u.username
+         FROM group_photos gp
+         JOIN users u ON gp.user_id = u.id
+         WHERE gp.group_id = ?
+         ORDER BY gp.created_at DESC`,
+        [groupId]
+      );
+      
+      return res.json({ success: 1, photos });
+    } catch (err) {
+      console.error('Error fetching photos:', err);
+      return res.status(500).json({ success: 0, message: 'Failed to fetch photos' });
+    }
+  })
+
+  router.post('/groups/:groupId/photos', 
+  groupAuth('member'), 
+  upload.single('photo'), // This handles the file upload
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: 0, message: 'No photo uploaded' });
+      }
+      
+      const { description } = req.body;
+      const { groupId } = req.params;
+      const userId = req.user.userId;
+      
+      // Generate unique filename
+      const ext = path.extname(req.file.originalname);
+      const filename = `${Date.now()}${ext}`;
+      const uploadPath = path.join(__dirname, '../../uploads/group-photos', filename);
+      
+      // Ensure upload directory exists
+      if (!fs.existsSync(path.dirname(uploadPath))) {
+        fs.mkdirSync(path.dirname(uploadPath), { recursive: true });
+      }
+      
+      // Move file from temp to permanent location
+      fs.renameSync(req.file.path, uploadPath);
+      const imageUrl = `/uploads/group-photos/${filename}`; 
+      
+      // Save to database
+      const [result] = await pool.query(
+        `INSERT INTO group_photos 
+          (group_id, user_id, image_url, description) 
+         VALUES (?, ?, ?, ?)`,
+        [groupId, userId, `/uploads/group-photos/${filename}`, description]
+      );
+      
+      const [newPhoto] = await pool.query(
+        `SELECT 
+          gp.id,
+          gp.image_url,
+          gp.description,
+          gp.created_at,
+          u.username
+         FROM group_photos gp
+         JOIN users u ON gp.user_id = u.id
+         WHERE gp.id = ?`,
+        [result.insertId]
+      );
+      
+      return res.json({ 
+        success: 1, 
+        message: 'Photo uploaded successfully',
+        photo: newPhoto[0]
+      });
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      // Clean up if file was uploaded but DB failed
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(500).json({ success: 0, message: 'Failed to upload photo' });
+    }
+  }
+);
+
+router.delete('/groups/:groupId/photos/:photoId', 
+  groupAuth('member'), 
+  async (req, res) => {
+    let connection;
+    try {
+      const { groupId, photoId } = req.params;
+      const userId = req.user.userId;
+      
+      connection = await pool.getConnection();
+      await connection.query('START TRANSACTION');
+      
+      // Verify photo exists and user has permission
+      const [photo] = await connection.query(
+        `SELECT 
+          gp.id, 
+          gp.image_url, 
+          gp.user_id,
+          gm.role
+         FROM group_photos gp
+         JOIN group_members gm ON gp.group_id = gm.group_id AND gm.user_id = ?
+         WHERE gp.id = ? AND gp.group_id = ?`,
+        [userId, photoId, groupId]
+      );
+      
+      if (!photo.length) {
+        await connection.query('ROLLBACK');
+        return res.status(404).json({ success: 0, message: 'Photo not found' });
+      }
+      
+      // Only admin or photo owner can delete
+      if (photo[0].user_id !== userId && photo[0].role !== 'admin') {
+        await connection.query('ROLLBACK');
+        return res.status(403).json({ success: 0, message: 'Not authorized to delete this photo' });
+      }
+      
+      // Delete file from filesystem
+      const filePath = path.join(__dirname, '../../', photo[0].image_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      
+      // Delete from database
+      await connection.query(
+        'DELETE FROM group_photos WHERE id = ?',
+        [photoId]
+      );
+      
+      await connection.query('COMMIT');
+      
+      return res.json({ success: 1, message: 'Photo deleted successfully' });
+    } catch (err) {
+      if (connection) await connection.query('ROLLBACK');
+      console.error('Error deleting photo:', err);
+      return res.status(500).json({ success: 0, message: 'Failed to delete photo' });
+    } finally {
+      if (connection) connection.release();
+    }
+  });
 module.exports = router;
