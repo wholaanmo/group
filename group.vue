@@ -590,20 +590,20 @@
   </div>
 
   <!-- Photo Upload Modal -->
-<div v-if="showUploadModal" class="modal-overlay">
-  <div class="modal-content photo-upload-modal">
-    <div class="modal-header">
+<div v-if="showUploadModal" class="modal-overlay5">
+  <div class="modal-content5 photo-upload-modal">
+    <div class="modal-header5">
       <h3>Upload Photo</h3>
       <button @click="closePhotoModal" class="close-button">&times;</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body5">
       <form @submit.prevent="uploadPhoto">
-        <div class="form-group">
+        <div class="form-group5">
           <label>Photo Description</label>
           <textarea v-model="newPhoto.description" placeholder="Add a description (optional)"></textarea>
         </div>
         
-        <div class="form-group">
+        <div class="form-group5">
           <label>Select Photo</label>
           <input 
             type="file" 
@@ -632,13 +632,13 @@
 </div>
 
 <!-- Photo View Modal -->
-<div v-if="viewingPhoto" class="modal-overlay photo-view-modal">
-  <div class="modal-content">
-    <div class="modal-header">
+<div v-if="viewingPhoto" class="modal-overlay5 photo-view-modal">
+  <div class="modal-content5">
+    <div class="modal-header5">
       <h3>Photo Details</h3>
       <button @click="viewingPhoto = null" class="close-button">&times;</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body5">
       <img :src="viewingPhoto.image_url" :alt="viewingPhoto.description">
       <div class="photo-details">
         <p v-if="viewingPhoto.description" class="photo-description">{{ viewingPhoto.description }}</p>
@@ -1109,8 +1109,12 @@ export default {
     async handler(newGroupId) {
       if (newGroupId && newGroupId !== this.localGroupId) {
         this.localGroupId = newGroupId;
-        await this.fetchContributionHistory();
-        await this.initializeGroupData();
+        this.groupPhotos = [];
+        await Promise.all([
+          this.fetchContributionHistory(),
+          this.initializeGroupData(),
+          this.fetchPhotos() 
+        ]);
         this.originalName = this.group.group_name || '';
       }
     }
@@ -1263,9 +1267,20 @@ export default {
     ]),
 
     handleImageError(event) {
-    console.error('Image failed to load:', event.target.src);
-  },
-  
+  console.error('Image failed to load:', event.target.src);
+  // Try to reconstruct the correct URL if it failed
+  const incorrectUrl = event.target.src;
+  if (incorrectUrl.includes('localhost:5173/uploads')) {
+    const correctUrl = incorrectUrl.replace(
+      'http://localhost:5173/uploads', 
+      `${this.$axios.defaults.baseURL}/uploads`
+    );
+    event.target.src = correctUrl;
+  } else {
+    event.target.style.display = 'none';
+  }
+},
+
     closeAlert() {
     this.showBudgetExceededAlert = false;
   },
@@ -1630,11 +1645,17 @@ async fetchPhotos() {
       );
       
       if (response.data.success) {
-        this.groupPhotos = response.data.photos.map(photo => ({
-        ...photo,
-        image_url: photo.image_url.startsWith('http') ? photo.image_url : 
-                  `${window.location.origin}${photo.image_url}`
-      }));
+      this.groupPhotos = response.data.photos.map(photo => {
+        return {
+          ...photo,
+          image_url: photo.image_url.startsWith('/uploads')
+            ? `${this.$axios.defaults.baseURL}${photo.image_url}`
+            : photo.image_url,
+          // Ensure these fields exist
+          username: photo.username || 'Unknown',
+          created_at: photo.created_at || new Date().toISOString()
+        };
+      });
       }
     } catch (err) {
       this.photosError = err.response?.data?.message || 'Failed to load photos';
@@ -1693,8 +1714,19 @@ async fetchPhotos() {
     );
     
     if (response.data.success) {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const photo = {
+        ...response.data.photo,
+        username: user.username, // Make sure username is included
+        created_at: new Date().toISOString(), // Ensure date is included
+        image_url: response.data.photo.image_url.startsWith('/uploads') 
+          ? `${this.$axios.defaults.baseURL}${response.data.photo.image_url}`
+          : response.data.photo.image_url
+      };
+
+      this.groupPhotos.unshift(photo);
+      this.$forceUpdate();
       this.showSuccess('Photo uploaded successfully!');
-      this.groupPhotos.unshift(response.data.photo);
       this.closePhotoModal();
     } else {
       this.showError(response.data.message || 'Upload failed');
@@ -1729,15 +1761,17 @@ async fetchPhotos() {
     this.confirmationTitle = 'Delete Photo';
     this.confirmationMessage = 'Are you sure you want to delete this photo?';
     this.confirmAction = async () => {
-      try {
-        await this.deletePhoto(photo.id);
-        this.showSuccess('Photo deleted successfully!');
-      } catch (err) {
-        this.showError(err.response?.data?.message || 'Failed to delete photo');
-      }
-    };
-    this.showConfirmationModal = true;
-  },
+    try {
+      await this.deletePhoto(photo.id);
+      this.showSuccess('Photo deleted successfully!');
+    } catch (err) {
+      this.showError(err.response?.data?.message || 'Failed to delete photo');
+    } finally {
+      this.showConfirmationModal = false; // Always close the modal
+    }
+  };
+  this.showConfirmationModal = true;
+},
   
   async deletePhoto(photoId) {
     try {
@@ -2910,10 +2944,14 @@ showError(message) {
   this.contributions = [];
   this.memberContributions = [];
   this.paidAmountInput = 0;
+  this.groupPhotos = []; 
   
   this.localGroupId = to.params.groupId; 
-  this.initializeGroupData()
-    .finally(() => next());
+
+  Promise.all([
+    this.initializeGroupData(),
+    this.fetchPhotos() // Explicitly fetch photos
+  ]).finally(() => next());
 }
 }
 };
@@ -2921,6 +2959,107 @@ showError(message) {
 
 <style scoped>
 /* Photos Tab Styles */
+.modal-overlay5 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content5 {
+  background-color: #f9fefc;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  margin: 60px auto;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  max-height: 90vh; 
+}
+
+.modal-header5 {
+  padding: 30px 30px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 3px solid #4f7a6b;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  box-shadow: inset 0 -4px 6px rgba(0,0,0,0.1);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.modal-header5 h3 {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 1.6rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.modal-header5 .close-button {
+  position: absolute;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #e4f9e4;
+  transition: color 0.3s ease;
+  padding: 5px;
+  border-radius: 50%;
+}
+
+.modal-header5 .close-button:hover {
+  color: #f9fefc;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.modal-body5 {
+  padding: 16px 20px;
+  background-color: #eefbf5; 
+}
+
+.form-group5 {
+  margin-bottom: 15px;
+}
+
+.form-group5 label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #4f7a6b;
+}
+
+.form-group5 textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 14px;
+  height: 60px;
+}
+
+.form-group5 input {
+  width: 96%;
+  padding: 8px;
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+}
 .photos-tab {
   padding: 20px;
 }
@@ -2929,23 +3068,28 @@ showError(message) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: -40px;
   margin-bottom: 20px;
 }
 
 .upload-photo-btn {
-  background-color: #8bbcae;
+  background: linear-gradient(135deg, #a7d2c6, #8bbcae, #6a9c89);
   color: white;
+  font-size: 15px;
   border: none;
-  padding: 8px 16px;
+  padding: 13px 30px;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: background 0.3s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .upload-photo-btn:hover {
-  background-color: #45a049;
+  background: linear-gradient(135deg, #b9e1d5, #a7d2c6, #8bbcae);
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
 }
 
 .photos-grid {
@@ -2955,7 +3099,7 @@ showError(message) {
 }
 
 .photo-card {
-  border: 1px solid #ddd;
+  border: 2px solid #4f7a6b;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -3013,12 +3157,21 @@ showError(message) {
 
 .photo-meta {
   padding: 10px;
+  background: #f5fbf9; /* very light greenish background */
+  border: 1px solid #d6e8e2;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.03);
+  font-family: 'Segoe UI', sans-serif;
 }
+
 
 .photo-description {
   margin: 0 0 10px 0;
   font-weight: 500;
   font-size: 14px;
+  color: #4f7a6b;
+  font-style: italic;
+  letter-spacing: 0.3px;
 }
 
 .photo-footer {
@@ -3052,35 +3205,47 @@ showError(message) {
 .photo-preview img {
   width: 100%;
   height: auto;
-  max-height: 300px;
+  max-height: 100px;
   object-fit: contain;
 }
 
 /* Photo View Modal */
-.photo-view-modal .modal-content {
-  max-width: 90%;
+.photo-view-modal .modal-content5 {
+  max-width: 60%;
   max-height: 90vh;
 }
 
 .photo-view-modal img {
   max-width: 100%;
-  max-height: 70vh;
+  max-height: 50vh;
   display: block;
   margin: 0 auto;
 }
 
 .photo-details {
   margin-top: 15px;
-  padding: 10px;
-  background: #f5f5f5;
-  border-radius: 4px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #eef9f5, #d9f2ea); 
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  font-size: 14px;
+  color: #3c4c47;
+  transition: background 0.3s ease;
 }
 
 .no-photos {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: #4f7a6b;
+  background: linear-gradient(135deg, #f0f9f6, #e5f3ef);
+  border: 2px dashed #8bbcae;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-style: italic;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: background 0.3s ease;
 }
+
 /* Voice Input Styles */
 .voice-help-modal {
   position: fixed;
@@ -5408,6 +5573,7 @@ Z
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
+
 .modal-header {
   position: relative;
   display: flex;
