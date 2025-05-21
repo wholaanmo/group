@@ -246,43 +246,171 @@
   <i class="fas fa-question-circle"></i> Voice Help
 </button>
 
-      <!--YOUR LIST OF EXPENSES-->
-      <div class="expenses-container smooth-scroll" ref="expensesContainer">
-      <div class="expenses-section"> 
-        <h3><i class="fas fa-coins"></i> <span>YOUR EXPENSES</span></h3> 
-         <div class="expenses-table"> 
-          <table>
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Item Name</th>
-                <th>Item Price</th>
-                <th>Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="expense in filteredExpenses" :key="expense?.id">
-  <td>{{ expense?.expense_type || 'N/A' }}</td>
-  <td>{{ expense?.item_name || 'N/A' }}</td>
-  <td>{{ expense?.item_price ? formatPHP(expense.item_price) : '₱0.00' }}</td>
-  <td>{{ formatDate(expense?.expense_date) }}</td>
-  <td class="actions">
-    <button @click="editExpense(expense)" class="edit-btn">Edit</button>
-    <button @click="deleteExpenseHandler(expense)" class="delete-btn">Delete</button>
-                </td>
-                </tr>
-            </tbody>
-          </table>
-        </div>
-       </div>
-       
-     <div class="total">
+<div class="expenses-container smooth-scroll" ref="expensesContainer">
+  <!-- Tab Buttons -->
+  <div class="expense-photo-tabs">
+    <button 
+      @click="activeView = 'expenses'" 
+      :class="{ active: activeView === 'expenses' }"
+      class="tab-btn"
+    >
+      <i class="fas fa-coins"></i> Expenses
+    </button>
+    <button 
+      @click="activeView = 'photos'" 
+      :class="{ active: activeView === 'photos' }"
+      class="tab-btn"
+    >
+      <i class="fas fa-camera"></i> Photos
+    </button>
+  </div>
+
+  <!-- Expenses View -->
+  <div v-if="activeView === 'expenses'" class="expenses-view">
+    <div class="expenses-section"> 
+      <h3><i class="fas fa-coins"></i> <span>YOUR EXPENSES</span></h3> 
+      <div class="expenses-table"> 
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Item Name</th>
+              <th>Item Price</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="expense in filteredExpenses" :key="expense?.id">
+              <td>{{ expense?.expense_type || 'N/A' }}</td>
+              <td>{{ expense?.item_name || 'N/A' }}</td>
+              <td>{{ expense?.item_price ? formatPHP(expense.item_price) : '₱0.00' }}</td>
+              <td>{{ formatDate(expense?.expense_date) }}</td>
+              <td class="actions">
+                <button @click="editExpense(expense)" class="edit-btn">Edit</button>
+                <button @click="deleteExpenseHandler(expense)" class="delete-btn">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="total">
       Total: <strong>₱{{ totalAmount.toFixed(2) }}</strong> (≈ {{ formatUsd(convertPhpToUsd(totalAmount)) }} USD)
-     </div>
     </div>
   </div>
+
+  <!-- Photos View -->
+  <div v-if="activeView === 'photos'" class="photos-tab">
+    <div class="photos-header">
+  <div class="photos-title">
+    <h2><i class="fas fa-images"></i> Photos</h2>
+    <p><i class="fas fa-arrow-down"></i> Upload your receipt or proof of expense</p>
   </div>
+  <button @click="showUploadModal = true" class="upload-photo-btn">
+    <i class="fas fa-plus"></i> Upload Photo
+  </button>
+</div>
+
+  <div v-if="photosLoading" class="loading-container">
+    <div class="spinner"></div>
+    <p>Loading photos...</p>
+  </div>
+
+  <div v-else-if="photosError" class="error-container">
+    <p class="error-message">{{ photosError }}</p>
+    <button @click="fetchPhotos" class="retry-button">Retry</button>
+  </div>
+
+  <div v-else-if="groupPhotos.length === 0" class="no-photos">
+    <p>No photos uploaded yet. Be the first to share!</p>
+  </div>
+
+  <div v-else class="photos-grid">
+    <div v-for="photo in groupPhotos" :key="photo.id" class="photo-card">
+      <div class="photo-wrapper">
+        <img :src="photo.image_url" :alt="photo.description || 'Group photo'" @click="openPhotoModal(photo)" class="photo-thumbnail" @error="handleImageError">
+        <div class="photo-actions">
+          <button @click.stop="confirmDeletePhoto(photo)" class="delete-photo-btn">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="photo-meta">
+        <p class="photo-description">{{ photo.description || 'No description' }}</p>
+        <div class="photo-footer">
+          <span class="photo-uploader">
+            <i class="fas fa-user"></i> {{ photo.username }}
+          </span>
+          <span class="photo-date">
+            <i class="far fa-calendar-alt"></i> {{ formatDate(photo.created_at) }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <div v-if="showUploadModal" class="modal-overlay5">
+  <div class="modal-content5 photo-upload-modal">
+    <div class="modal-header5">
+      <h3>Upload Photo</h3>
+      <button @click="closePhotoModal" class="close-button">&times;</button>
+    </div>
+    <div class="modal-body5">
+      <form @submit.prevent="uploadPhoto">
+        <div class="form-group5">
+          <label>Photo Description</label>
+          <textarea v-model="newPhoto.description" placeholder="Add a description (optional)"></textarea>
+        </div>
+        
+        <div class="form-group5">
+          <label>Select Photo</label>
+          <input 
+            type="file" 
+            ref="photoInput"
+            accept="image/*"
+            @change="handleFileSelect"
+            required
+          >
+          <div v-if="photoPreview" class="photo-preview">
+            <img :src="photoPreview" alt="Preview">
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" @click="closePhotoModal" class="cancel-button">Cancel</button>
+          <button type="submit" class="submit-button" :disabled="uploadingPhoto">
+            <span v-if="uploadingPhoto">
+              <i class="fas fa-spinner fa-spin"></i> Uploading...
+            </span>
+            <span v-else>Upload Photo</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Photo View Modal -->
+<div v-if="viewingPhoto" class="modal-overlay5 photo-view-modal">
+  <div class="modal-content5">
+    <div class="modal-header5">
+      <h3>Photo Details</h3>
+      <button @click="viewingPhoto = null" class="close-button">&times;</button>
+    </div>
+    <div class="modal-body5">
+      <img :src="viewingPhoto.image_url" :alt="viewingPhoto.description">
+      <div class="photo-details">
+        <p v-if="viewingPhoto.description" class="photo-description">{{ viewingPhoto.description }}</p>
+        <p class="photo-meta">Uploaded by {{ viewingPhoto.username }} on {{ formatDate(viewingPhoto.created_at) }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+</div>
+</div>
  </template>
  
  <script>
@@ -294,6 +422,20 @@
    components: { Navigation },
    data() {
      return {
+      isAdmin: false,
+      activeView: 'expenses', 
+      photoFile: null,
+      photoPreview: null,
+    uploadingPhoto: false,
+    groupPhotos: [],
+    photosLoading: false,
+    photosError: null,
+      showUploadModal: false,
+    viewingPhoto: null,
+    newPhoto: {
+      description: '',
+      file: null
+    },
       showVoiceHelpModal: false,
       isListening: false,
       voiceInput: '',
@@ -484,7 +626,8 @@ currentBudget() {
     await this.setSelectedMonthYear(currentMonthYear);
 
     this.setupVoiceRecognition();
-
+    this.fetchPhotos();
+    
     await Promise.all([
       this.fetchExchangeRate(),
       this.fetchPersonalBudgets(),
@@ -554,6 +697,21 @@ currentBudget() {
        'setSelectedMonthYear' ,
        'fetchAddExpenses' 
      ]),
+
+     handleImageError(event) {
+  console.error('Image failed to load:', event.target.src);
+  // Try to reconstruct the correct URL if it failed
+  const incorrectUrl = event.target.src;
+  if (incorrectUrl.includes('localhost:5173/uploads')) {
+    const correctUrl = incorrectUrl.replace(
+      'http://localhost:5173/uploads', 
+      `${this.$axios.defaults.baseURL}/uploads`
+    );
+    event.target.src = correctUrl;
+  } else {
+    event.target.style.display = 'none';
+  }
+},
 
      showVoiceHelp() {
     this.showVoiceHelpModal = true;
@@ -890,6 +1048,212 @@ currentBudget() {
     }
   },
 
+  async fetchPhotos() {
+  this.photosLoading = true;
+  this.photosError = null;
+  try {
+    const response = await this.$axios.get('/api/photos', {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      }
+    });
+    
+    if (response.data.success) {
+      this.groupPhotos = response.data.data.map(photo => {
+        return {
+          ...photo,
+          user_id: photo.user_id, 
+          image_url: photo.image_url.startsWith('/uploads')
+            ? `${this.$axios.defaults.baseURL}${photo.image_url}`
+            : photo.image_url
+        };
+      });
+    }
+  } catch (err) {
+    this.photosError = err.response?.data?.message || 'Failed to load photos';
+    console.error('Error fetching photos:', err);
+  } finally {
+    this.photosLoading = false;
+  }
+},
+
+    handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        // Validate file type and size
+        if (!file.type.match('image.*')) {
+          this.$toast.error('Please select an image file (JPEG, PNG, etc.)');
+          return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+          this.$toast.error('Image size should be less than 5MB');
+          return;
+        }
+        
+        this.newPhoto.file = file;
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.photoPreview = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    },
+    
+    async uploadPhoto() {
+  if (!this.newPhoto.file) {
+    this.$toast.error('Please select a photo to upload');
+    return;
+  }
+
+  this.uploadingPhoto = true;
+  
+  try {
+    const formData = new FormData();
+    formData.append('photo', this.newPhoto.file);
+    formData.append('description', this.newPhoto.description);
+
+    // Add debug logging
+    console.log('Preparing to upload photo:', {
+      file: this.newPhoto.file,
+      description: this.newPhoto.description
+    });
+
+    const response = await this.$axios.post('/api/photos', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      },
+      timeout: 30000 // 30 seconds timeout
+    }).catch(error => {
+      // Handle axios-specific errors
+      if (error.response) {
+        // Server responded with a status code outside 2xx
+        console.error('Server responded with error:', error.response.status, error.response.data);
+        throw new Error(error.response.data?.message || 'Server error occurred');
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error('No response received:', error.request);
+        throw new Error('No response from server. Please check your connection.');
+      } else {
+        // Something happened in setting up the request
+        console.error('Request setup error:', error.message);
+        throw new Error('Failed to setup request');
+      }
+    });
+
+    // Debug the response structure
+    console.log('Upload response:', response);
+
+    if (!response || !response.data) {
+      throw new Error('Invalid server response format');
+    }
+
+    if (response.data.success) {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user) {
+        throw new Error('User information not found');
+      }
+
+      // Ensure required fields exist in response
+      if (!response.data.data || !response.data.data.image_url) {
+        throw new Error('Invalid photo data in response');
+      }
+
+      const newPhoto = {
+        ...response.data.data,
+        user_id: user.id,
+        username: user.username,
+        created_at: new Date().toISOString(),
+        image_url: response.data.data.image_url.startsWith('/uploads')
+          ? `${this.$axios.defaults.baseURL}${response.data.data.image_url}`
+          : response.data.data.image_url
+      };
+
+      this.groupPhotos.unshift(newPhoto);
+      this.$toast.success('Photo uploaded successfully!');
+      this.closePhotoModal();
+    } else {
+      throw new Error(response.data.message || 'Upload failed without error message');
+    }
+  } catch (err) {
+    console.error('Error uploading photo:', err);
+    
+    // Clean up the file if upload failed
+    if (this.newPhoto.file && this.photoPreview) {
+      URL.revokeObjectURL(this.photoPreview);
+    }
+
+    let errorMessage = 'Failed to upload photo';
+    if (err.message) {
+      errorMessage = err.message;
+    } else if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    }
+
+    this.$toast.error(errorMessage);
+  } finally {
+    this.uploadingPhoto = false;
+  }
+},
+    
+openPhotoModal(photo) {
+    this.viewingPhoto = photo;
+  },
+  
+  closePhotoModal() {
+  this.showUploadModal = false;
+  this.newPhoto = { description: '', file: null };
+  this.photoPreview = null;
+  if (this.$refs.photoInput) {
+    this.$refs.photoInput.value = ''; // Reset file input
+  }
+  this.uploadingPhoto = false; // Ensure loading state is reset
+},
+  
+  confirmDeletePhoto(photo) {
+    this.confirmationTitle = 'Delete Photo';
+    this.confirmationMessage = 'Are you sure you want to delete this photo?';
+    this.confirmAction = async () => {
+    try {
+      await this.deletePhoto(photo.id);
+      this.showSuccess('Photo deleted successfully!');
+    } catch (err) {
+      this.showError(err.response?.data?.message || 'Failed to delete photo');
+    } finally {
+      this.showConfirmationModal = false; // Always close the modal
+    }
+  };
+  this.showConfirmationModal = true;
+},
+    
+async deletePhoto(photoId) {
+    try {
+        
+        await this.$axios.delete(`/api/photos/${photoId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        });
+        
+        this.groupPhotos = this.groupPhotos.filter(p => p.id !== photoId);
+    } catch (err) {
+      console.error('Error deleting photo:', err);
+      throw err;
+    }
+  },
+
+  canDeletePhoto(photo) {
+  const user = JSON.parse(localStorage.getItem('user'));
+  if (!user || !photo) return false;
+  
+  // For debugging - you can remove this later
+  console.log('Current User ID:', user.id, 'Photo User ID:', photo.user_id);
+  
+  // Compare the current user's ID with the photo's user_id
+  return user.id === photo.user_id;
+},
 
   async changeMonth(date) {
     const newMonthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -1073,10 +1437,6 @@ async submitPredictionFeedback(isCorrect) {
       expense_type: isCorrect ? this.expenseType : 'Other', // Use correct type or 'Other'
       correction_source: isCorrect ? 'manual' : 'auto',
       userId: this.$store.state.user?.id, // Match your column name (userId not user_id)
-      // Optional fields you might want to include:
-      // item_price: this.itemPrice, // If available
-      // expense_date: new Date(), // Will use default if not provided
-      // confidence_score: this.confidenceScore // If available
     };
 
     // For both correct and incorrect cases
@@ -1539,6 +1899,492 @@ async deleteExpenseHandler(expense) {
 
  
 <style scoped>
+/* Photos Tab Styles */
+.modal-overlay5 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content5 {
+  background-color: #f9fefc;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  margin: 60px auto;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  max-height: 90vh; 
+}
+
+.modal-header5 {
+  padding: 30px 30px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 3px solid #4f7a6b;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  box-shadow: inset 0 -4px 6px rgba(0,0,0,0.1);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.modal-header5 h3 {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 1.6rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.modal-header5 .close-button {
+  position: absolute;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #e4f9e4;
+  transition: color 0.3s ease;
+  padding: 5px;
+  border-radius: 50%;
+}
+
+.modal-header5 .close-button:hover {
+  color: #f9fefc;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.modal-body5 {
+  padding: 16px 20px;
+  background-color: #eefbf5; 
+}
+
+.form-group5 {
+  margin-bottom: 15px;
+}
+
+.form-group5 label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #4f7a6b;
+}
+
+.form-group5 textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 14px;
+  height: 60px;
+}
+
+.form-group5 input {
+  width: 96%;
+  padding: 8px;
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+}
+.photos-tab {
+  padding: 20px;
+}
+
+.photos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: -40px;
+  margin-bottom: 20px;
+}
+
+.photos-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px; /* Adds space between title and description */
+}
+
+.photos-title h2 {
+  font-size: 22px;
+  color: #8bbcae; /* lighter fresh greenish shade */
+  margin-bottom: 6px;
+  font-weight: 600; /* slightly bolder */
+  letter-spacing: 0.03em; /* subtle spacing for elegance */
+}
+
+.photos-title p{
+  font-size: 1rem;
+  color: #47806f; /* medium light shade */
+  padding-left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-style: italic; /* gentle style for description */
+}
+
+
+.upload-photo-btn {
+  background: linear-gradient(135deg, #a7d2c6, #8bbcae, #6a9c89);
+  color: white;
+  font-size: 15px;
+  border: none;
+  padding: 13px 30px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  gap: 8px;
+  transition: background 0.3s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.upload-photo-btn:hover {
+  background: linear-gradient(135deg, #b9e1d5, #a7d2c6, #8bbcae);
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+}
+
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.photo-card {
+  border: 2px solid #4f7a6b;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.photo-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.photo-wrapper {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+}
+
+.photo-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.photo-thumbnail:hover {
+  transform: scale(1.05);
+}
+
+.photo-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.photo-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.delete-photo-btn {
+  background-color: rgba(255,0,0,0.7);
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-meta {
+  padding: 10px;
+  background: #f5fbf9; /* very light greenish background */
+  border: 1px solid #d6e8e2;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.03);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+
+.photo-description {
+  margin: 0 0 10px 0;
+  font-weight: 500;
+  font-size: 14px;
+  color: #4f7a6b;
+  font-style: italic;
+  letter-spacing: 0.3px;
+}
+
+.photo-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+
+.photo-uploader, .photo-date {
+  font-size: 13px;
+  color: #666;
+  margin: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Photo Upload Modal */
+.photo-upload-modal {
+  max-width: 500px;
+}
+
+.photo-preview {
+  margin-top: 10px;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.photo-preview img {
+  width: 100%;
+  height: auto;
+  max-height: 100px;
+  object-fit: contain;
+}
+
+/* Photo View Modal */
+.photo-view-modal .modal-content5 {
+  max-width: 60%;
+  max-height: 90vh;
+}
+
+.photo-view-modal img {
+  max-width: 100%;
+  max-height: 50vh;
+  display: block;
+  margin: 0 auto;
+}
+
+.photo-details {
+  margin-top: 15px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #eef9f5, #d9f2ea); 
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  font-size: 14px;
+  color: #3c4c47;
+  transition: background 0.3s ease;
+}
+
+.no-photos {
+  text-align: center;
+  padding: 40px;
+  color: #4f7a6b;
+  background: linear-gradient(135deg, #f0f9f6, #e5f3ef);
+  border: 2px dashed #8bbcae;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-style: italic;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: background 0.3s ease;
+}
+
+.expense-photo-tabs {
+  display: flex;
+  justify-content: center; /* Center horizontally */
+  align-items: center;     /* Center vertically */
+  border-bottom: 2px solid #d5d4d4;
+  margin-bottom: 30px;
+  text-align: center;
+  gap: 400px; /* Optional: spacing between buttons */
+}
+
+
+.expense-photo-tabs button {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  position: relative;
+  color: #666;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border-radius: 6px 6px 0 0;
+  text-align: center;
+}
+
+.expense-photo-tabs button:hover {
+  background-color: #f5f5f5;
+  color: #2a4935;
+}
+
+.expense-photo-tabs button.active {
+  color: #2a4935;
+  font-weight: 600;
+  background-color: #f0f7f3;
+}
+
+.expense-photo-tabs button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #2a4935;
+  border-radius: 3px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.tab-btn i {
+  margin-right: 8px;
+}
+
+.tab-btn.active {
+  color: #4a89dc;
+  border-bottom-color: #4a89dc;
+  font-weight: bold;
+}
+
+.tab-btn:hover:not(.active) {
+  color: #333;
+  border-bottom-color: #ccc;
+}
+
+/* Photos view styling */
+.photos-view {
+  padding: 15px;
+}
+
+.photo-upload {
+  margin-bottom: 20px;
+}
+
+.upload-btn {
+  background-color: #4a89dc;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.upload-btn:hover {
+  background-color: #3a70c2;
+}
+
+.photo-preview {
+  margin-top: 15px;
+  border: 1px dashed #ddd;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.photo-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.photo-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.description-input {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.photo-item {
+  border: 1px solid #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.photo-item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.photo-meta {
+  padding: 10px;
+  background: #f9f9f9;
+}
+
+.photo-desc {
+  margin: 0 0 5px 0;
+  font-size: 14px;
+}
+
+.photo-date {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.delete-photo {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+  float: right;
+}
+
+/* .photo-viewer-modal {
+   Your existing modal styles 
+}*/
+
 .btn-confirm, .btn-cancel1 {
   padding: 8px 15px;
   font-size: 0.9rem;
@@ -1757,7 +2603,7 @@ async deleteExpenseHandler(expense) {
 
 .voice-btn {
   background: #f0f0f0;
-  border: none;
+  border: 1px solid  #6a9c89;;
   border-radius: 50%;
   width: 36px;
   height: 36px;
@@ -2016,17 +2862,16 @@ async deleteExpenseHandler(expense) {
 .top-row {
   margin-top: 100px;
   display: flex;
-  flex-wrap: nowrap; /* prevent wrapping by default */
+  flex-wrap: nowrap; 
   gap: 20px;
   width: 100%;
   flex-direction: row;
 } 
 
-/* Budget Container Styles */
 .budget-container {
   flex: 1 1 30%;
   min-width: 150px;
-  background-color: #daf9da; 
+  background-color: #e8f8f1; 
   padding: 20px;
   border-radius: 15px;
   border: 2px solid #2e4e38;
@@ -2057,7 +2902,7 @@ async deleteExpenseHandler(expense) {
 }
 
 .btn-add, .btn-edit {
-  background: linear-gradient(135deg, #2a4935, #3d6b4d);
+  background: linear-gradient(135deg, #70a18d, #487061);
   color: white;
   border: none;
   padding: 10px 12px;
@@ -2257,7 +3102,7 @@ async deleteExpenseHandler(expense) {
   border: 1px solid #ddd;
   cursor: pointer;
   transition: all 0.3s;
-  background: #2a4935;
+  background: #4f7265;
   color: white;
   padding: 6px 12px;
   border-radius: 5px;
@@ -2433,7 +3278,7 @@ async deleteExpenseHandler(expense) {
   align-content: center;
   flex: 1 1 65%;
   min-width: 280px;
-  background-color: #c5f8cc;
+  background-color: #dffae7;
   border: 2px solid #365c42;
   padding: 20px;
   border-radius: 15px;
@@ -2699,7 +3544,7 @@ select[disabled] {
  
 .btn {
   padding: 12px 50px;
-  background: linear-gradient(135deg, #2a4935, #3d6b4d); /* subtle gradient */
+  background: linear-gradient(135deg, #70a18d, #487061);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   color: #ffffff;
   border: none;
