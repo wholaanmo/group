@@ -1,0 +1,176 @@
+const express = require('express');
+const router = express.Router();
+const { checkToken } = require('../../auth/token_validation');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const pool = require('../../config/database');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/personal-photos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+
+router.post('/', checkToken, upload.single('photo'), async (req, res) => {
+  console.log('Incoming POST request to: /api/photos');
+  console.log('Decoded token payload:', req.user);  
+  
+  try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No photo uploaded' });
+      }
+      
+      if (!req.user || !req.user.userId) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'User not authenticated' 
+        });
+      }
+      
+      const { description = '' } = req.body;
+      const userId = req.user.userId;
+
+      const [result] = await pool.query(
+        `INSERT INTO personal_photos 
+         (user_id, image_url, description) 
+         VALUES (?, ?, ?)`,
+        [userId, `/uploads/personal-photos/${req.file.filename}`, description]
+      );  
+      
+      const [photo] = await pool.query(
+        `SELECT 
+          p.id,
+          p.image_url,
+          p.description,
+          p.created_at,
+          u.username
+         FROM personal_photos p
+         JOIN users u ON p.user_id = u.id
+         WHERE p.id = ?`,
+        [result.insertId]
+      );
+  
+      res.json({
+        success: true,
+        message: 'Photo uploaded successfully',
+        data: photo[0]
+      });
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      
+      // Clean up uploaded file if error occurred
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      
+      res.status(500).json({ 
+        success: false,
+        message: error.message || 'Failed to upload photo' 
+      });
+    }
+  });
+
+  router.get('/', checkToken, async (req, res) => {
+    try {
+      const [photos] = await pool.query(
+        `SELECT 
+          p.id,
+          p.image_url,
+          p.description,
+          p.created_at,
+          u.username
+         FROM personal_photos p
+         JOIN users u ON p.user_id = u.id
+         WHERE p.user_id = ?
+         ORDER BY p.created_at DESC`,
+        [req.user.userId]
+      );
+  
+      res.json({
+        success: true,
+        data: photos
+      });
+    } catch (error) {
+      console.error('Error fetching photos:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to fetch photos' 
+      });
+    }
+  });
+
+  router.delete('/:id', checkToken, async (req, res) => {
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      await connection.query('START TRANSACTION');
+  
+      // Get photo info first
+      const [photo] = await connection.query(
+        `SELECT image_url FROM personal_photos 
+         WHERE id = ? AND user_id = ?`,
+        [req.params.id, req.user.userId]
+      );
+  
+      if (!photo.length) {
+        await connection.query('ROLLBACK');
+        return res.status(404).json({ 
+          success: false,
+          message: 'Photo not found or not authorized' 
+        });
+      }
+  
+      // Delete file from server
+      const filePath = path.join(__dirname, '../../', photo[0].image_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+  
+      // Delete from database
+      await connection.query(
+        'DELETE FROM personal_photos WHERE id = ?',
+        [req.params.id]
+      );
+  
+      await connection.query('COMMIT');
+  
+      res.json({
+        success: true,
+        message: 'Photo deleted successfully'
+      });
+    } catch (error) {
+      if (connection) await connection.query('ROLLBACK');
+      console.error('Error deleting photo:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to delete photo' 
+      });
+    } finally {
+      if (connection) connection.release();
+    }
+  });
+  
+module.exports = router;
+  
