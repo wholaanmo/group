@@ -14,7 +14,7 @@
                       <input v-model="password" type="password" name="password" class="text-style" required>  
                   </div>
 
-                  <p class="error">{{ message }}</p>
+                  <p v-if="message" class="error">{{ message }}</p>
                   
                       <button type="submit" class="login-btn">SIGN IN</button>
                       <router-link to="/register" class="login-btn">SIGN UP</router-link>
@@ -235,10 +235,10 @@ background-color: #45a049;
 }
 
 .error {
-    color: #ff4444;
-    background-color: #ffebee;
-    border: 1px solid #ff4444;
-    padding: 5px;
+  color: #ff4444;
+  background-color: #ffebee;
+  border: 1px solid #ff4444;
+  padding: 5px;
 }
 
 @keyframes flash {
