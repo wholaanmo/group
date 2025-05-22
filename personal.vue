@@ -14,11 +14,11 @@
         <span style="margin-left: 25px;">
     Are you sure you want to delete {{ expenseToDelete?.item_name }} ({{ formatPHP(expenseToDelete?.item_price) }})?
   </span>
-      <button @click="confirmDeleteExpense" class="btn-confirm">Yes</button>
-      <button @click="cancelDeleteExpense" class="btn-cancel1">No</button>
+      <button @click="confirmDeleteExpense" class="btn-cancel1">Yes</button>
+      <button @click="cancelDeleteExpense" class="btn-confirm">No</button>
     </div>
 
-    <div v-if="error" class="error-message">
+    <div v-if="error" class="error-message">btn-cancel1
         An error occurred: {{ error }}
         <button @click="resetError">Try Again</button>
     </div>
@@ -331,7 +331,7 @@
       <div class="photo-wrapper">
         <img :src="photo.image_url" :alt="photo.description || 'Group photo'" @click="openPhotoModal(photo)" class="photo-thumbnail" @error="handleImageError">
         <div class="photo-actions">
-          <button @click.stop="confirmDeletePhoto(photo)" class="delete-photo-btn">
+          <button @click.stop="confirmDeletePhoto(photo)" class="delete-photo-btn" v-if="canDeletePhoto(photo)">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -378,8 +378,8 @@
         </div>
         
         <div class="form-actions">
-          <button type="button" @click="closePhotoModal" class="cancel-button">Cancel</button>
-          <button type="submit" class="submit-button" :disabled="uploadingPhoto">
+          <button type="button" @click="closePhotoModal" class="cancel-button1">Cancel</button>
+          <button type="submit" class="submit-button1" :disabled="uploadingPhoto">
             <span v-if="uploadingPhoto">
               <i class="fas fa-spinner fa-spin"></i> Uploading...
             </span>
@@ -390,6 +390,22 @@
     </div>
   </div>
 </div>
+
+<div v-if="showConfirmationModal" class="modal-overlay2">
+      <div class="modal-content2 confirmation-modal">
+        <div class="modal-header2">
+          <h3>{{ confirmationTitle }}</h3>
+          <button @click="closeModal" class="close-button2">&times;</button>
+        </div>
+        <div class="modal-body2">
+          <p>{{ confirmationMessage }}</p>
+          <div class="confirmation-actions">
+            <button @click="closeModal" class="cancel-button">Cancel</button>
+            <button @click="confirmAction" class="confirm-button">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
 <!-- Photo View Modal -->
 <div v-if="viewingPhoto" class="modal-overlay5 photo-view-modal">
@@ -422,6 +438,16 @@
    components: { Navigation },
    data() {
      return {
+      showConfirmationModal: false,
+    confirmationTitle: '',
+    confirmationMessage: '',
+    confirmAction: null,
+      photoModal: {
+      show: false,
+      photo: { description: '', file: null },
+      preview: null,
+      uploading: false
+    },
       isAdmin: false,
       activeView: 'expenses', 
       photoFile: null,
@@ -654,9 +680,12 @@ currentBudget() {
   }
 },
 
-  beforeUnmount() {
-    clearInterval(this.monthCheckInterval);
-  },
+beforeUnmount() {
+  clearInterval(this.monthCheckInterval);
+  if (this.photoPreview) {
+    URL.revokeObjectURL(this.photoPreview);
+  }
+},
 
 
   watch: {
@@ -699,17 +728,22 @@ currentBudget() {
      ]),
 
      handleImageError(event) {
-  console.error('Image failed to load:', event.target.src);
-  // Try to reconstruct the correct URL if it failed
   const incorrectUrl = event.target.src;
-  if (incorrectUrl.includes('localhost:5173/uploads')) {
+  console.error('Image failed to load:', incorrectUrl);
+  
+  // Try to reconstruct the correct URL
+  if (incorrectUrl.includes('localhost:5173')) {
+    // Replace the frontend URL with backend URL
+    const backendBase = this.$axios.defaults.baseURL;
     const correctUrl = incorrectUrl.replace(
-      'http://localhost:5173/uploads', 
-      `${this.$axios.defaults.baseURL}/uploads`
+      'http://localhost:5173', 
+      backendBase
     );
     event.target.src = correctUrl;
   } else {
+    // Fallback - hide the broken image
     event.target.style.display = 'none';
+    event.target.parentElement?.classList?.add('broken-image');
   }
 },
 
@@ -1049,211 +1083,202 @@ currentBudget() {
   },
 
   async fetchPhotos() {
-  this.photosLoading = true;
-  this.photosError = null;
-  try {
-    const response = await this.$axios.get('/api/photos', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-      }
-    });
-    
-    if (response.data.success) {
-      this.groupPhotos = response.data.data.map(photo => {
+    this.photosLoading = true;
+    this.photosError = null;
+    try {
+      const response = await this.$axios.get(
+        `/api/photos`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data && response.data.success === 1) {
+      this.groupPhotos = response.data.photos.map(photo => {
         return {
           ...photo,
-          user_id: photo.user_id, 
           image_url: photo.image_url.startsWith('/uploads')
             ? `${this.$axios.defaults.baseURL}${photo.image_url}`
-            : photo.image_url
+            : photo.image_url,
+          // Ensure these fields exist
+          username: photo.username || 'Unknown',
+          created_at: photo.created_at || new Date().toISOString()
         };
       });
-    }
-  } catch (err) {
-    this.photosError = err.response?.data?.message || 'Failed to load photos';
-    console.error('Error fetching photos:', err);
-  } finally {
-    this.photosLoading = false;
-  }
-},
-
-    handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (file) {
-        // Validate file type and size
-        if (!file.type.match('image.*')) {
-          this.$toast.error('Please select an image file (JPEG, PNG, etc.)');
-          return;
-        }
-        
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-          this.$toast.error('Image size should be less than 5MB');
-          return;
-        }
-        
-        this.newPhoto.file = file;
-        // Create preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          this.photoPreview = e.target.result;
-        };
-        reader.readAsDataURL(file);
       }
-    },
+    } catch (err) {
+      this.photosError = err.response?.data?.message || 'Failed to load photos';
+      console.error('Error fetching photos:', err);
+    } finally {
+      this.photosLoading = false;
+    }
+  },
+
+handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type and size
+      if (!file.type.match('image.*')) {
+      this.$toast.error('Please select an image file (JPEG, PNG, etc.)');
+      return;
+    }
+      
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        this.$toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      this.newPhoto.file = file;
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.photoPreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  },
     
-    async uploadPhoto() {
+  async uploadPhoto() {
   if (!this.newPhoto.file) {
     this.$toast.error('Please select a photo to upload');
     return;
   }
-
-  this.uploadingPhoto = true;
   
+  this.uploadingPhoto = true;
+
   try {
     const formData = new FormData();
     formData.append('photo', this.newPhoto.file);
     formData.append('description', this.newPhoto.description);
-
-    // Add debug logging
-    console.log('Preparing to upload photo:', {
-      file: this.newPhoto.file,
-      description: this.newPhoto.description
-    });
-
-    const response = await this.$axios.post('/api/photos', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-      },
-      timeout: 30000 // 30 seconds timeout
-    }).catch(error => {
-      // Handle axios-specific errors
-      if (error.response) {
-        // Server responded with a status code outside 2xx
-        console.error('Server responded with error:', error.response.status, error.response.data);
-        throw new Error(error.response.data?.message || 'Server error occurred');
-      } else if (error.request) {
-        // Request was made but no response received
-        console.error('No response received:', error.request);
-        throw new Error('No response from server. Please check your connection.');
-      } else {
-        // Something happened in setting up the request
-        console.error('Request setup error:', error.message);
-        throw new Error('Failed to setup request');
+    
+    const response = await this.$axios.post(
+      `/api/photos`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
       }
-    });
+    );
 
-    // Debug the response structure
-    console.log('Upload response:', response);
-
-    if (!response || !response.data) {
-      throw new Error('Invalid server response format');
-    }
-
-    if (response.data.success) {
+    if (response.data && response.data.success === 1) {
       const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) {
-        throw new Error('User information not found');
-      }
-
-      // Ensure required fields exist in response
-      if (!response.data.data || !response.data.data.image_url) {
-        throw new Error('Invalid photo data in response');
-      }
-
-      const newPhoto = {
-        ...response.data.data,
+      const photo = {
+        id: response.data.photo.id,
+        image_url: response.data.photo.image_url,
+        description: response.data.photo.description,
         user_id: user.id,
         username: user.username,
-        created_at: new Date().toISOString(),
-        image_url: response.data.data.image_url.startsWith('/uploads')
-          ? `${this.$axios.defaults.baseURL}${response.data.data.image_url}`
-          : response.data.data.image_url
+        created_at: new Date().toISOString()
       };
 
-      this.groupPhotos.unshift(newPhoto);
+      this.groupPhotos.unshift(photo);
       this.$toast.success('Photo uploaded successfully!');
-      this.closePhotoModal();
+      this.resetPhotoForm(); // Explicitly close the modal here
+      this.$nextTick(() => {
+        this.showUploadModal = false;
+      });
     } else {
-      throw new Error(response.data.message || 'Upload failed without error message');
+      throw new Error(response.data?.message || 'Upload failed');
     }
   } catch (err) {
-    console.error('Error uploading photo:', err);
-    
-    // Clean up the file if upload failed
-    if (this.newPhoto.file && this.photoPreview) {
-      URL.revokeObjectURL(this.photoPreview);
-    }
-
-    let errorMessage = 'Failed to upload photo';
-    if (err.message) {
-      errorMessage = err.message;
-    } else if (err.response?.data?.message) {
-      errorMessage = err.response.data.message;
-    }
-
-    this.$toast.error(errorMessage);
+    console.error('Upload error:', err);
+    this.$toast.error(err.response?.data?.message || err.message || 'Failed to upload photo');
   } finally {
     this.uploadingPhoto = false;
   }
 },
-    
+
+resetPhotoForm() {
+  this.newPhoto = { description: '', file: null };
+  this.photoPreview = null;
+  if (this.$refs.photoInput) {
+    this.$refs.photoInput.value = '';
+  }
+  this.showUploadModal = false; // Explicitly close the modal
+},
+
 openPhotoModal(photo) {
     this.viewingPhoto = photo;
   },
   
   closePhotoModal() {
-  this.showUploadModal = false;
-  this.newPhoto = { description: '', file: null };
-  this.photoPreview = null;
-  if (this.$refs.photoInput) {
-    this.$refs.photoInput.value = ''; // Reset file input
-  }
-  this.uploadingPhoto = false; // Ensure loading state is reset
+  this.resetPhotoForm();
 },
   
-  confirmDeletePhoto(photo) {
-    this.confirmationTitle = 'Delete Photo';
-    this.confirmationMessage = 'Are you sure you want to delete this photo?';
-    this.confirmAction = async () => {
+confirmDeletePhoto(photo) {
+  if (!this.canDeletePhoto(photo)) {
+    this.$toast.error("You don't have permission to delete this photo");
+    return;
+  }
+  
+  this.confirmationTitle = 'Delete Photo';
+  this.confirmationMessage = 'Are you sure you want to delete this photo?';
+  this.confirmAction = async () => {
     try {
-      await this.deletePhoto(photo.id);
-      this.showSuccess('Photo deleted successfully!');
+      const response = await this.deletePhoto(photo.id);
+      
+      // Check for success in the response
+      if (response && response.success) {
+        this.$toast.success(response.message || 'Photo deleted successfully!');
+        this.groupPhotos = this.groupPhotos.filter(p => p.id !== photo.id);
+      } else {
+        throw new Error(response?.message || 'Photo deletion failed');
+      }
     } catch (err) {
-      this.showError(err.response?.data?.message || 'Failed to delete photo');
+      console.error('Delete error:', err);
+      this.$toast.error(err.response?.data?.message || err.message || 'Failed to delete photo');
     } finally {
-      this.showConfirmationModal = false; // Always close the modal
+      this.showConfirmationModal = false;
     }
   };
   this.showConfirmationModal = true;
 },
+
+  closeModal() {
+    this.showConfirmationModal = false;
+    this.confirmAction = null;
+  },
+
+  beforeDestroy() {
+  if (this.photoPreview) {
+    URL.revokeObjectURL(this.photoPreview);
+  }
+  this.showUploadModal = false; 
+},
     
 async deletePhoto(photoId) {
-    try {
+  try {
+    const response = await this.$axios.delete(`/api/photos/${photoId}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+      }
+    });
         
-        await this.$axios.delete(`/api/photos/${photoId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
-          }
-        });
-        
-        this.groupPhotos = this.groupPhotos.filter(p => p.id !== photoId);
-    } catch (err) {
-      console.error('Error deleting photo:', err);
-      throw err;
+    if (response && response.data && response.data.success) {
+      this.groupPhotos = this.groupPhotos.filter(p => p.id !== photoId);
+      return response.data; // Return the successful response
     }
-  },
+    
+    // If response structure is unexpected
+    throw new Error(response?.data?.message || 'Unexpected response from server');
+    
+  } catch (err) {
+    console.error('Error deleting photo:', err);
+    throw err; // Re-throw the error to be caught by the calling function
+  }
+},
 
   canDeletePhoto(photo) {
   const user = JSON.parse(localStorage.getItem('user'));
   if (!user || !photo) return false;
-  
-  // For debugging - you can remove this later
   console.log('Current User ID:', user.id, 'Photo User ID:', photo.user_id);
-  
-  // Compare the current user's ID with the photo's user_id
   return user.id === photo.user_id;
 },
+
 
   async changeMonth(date) {
     const newMonthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -1899,6 +1924,68 @@ async deleteExpenseHandler(expense) {
 
  
 <style scoped>
+.modal-overlay2 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-header2 {
+  position: relative;
+  display: flex;
+  padding: 15px 20px;
+  justify-content: center;
+  align-items: center;
+  background-color: #f56161;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom: 1px solid #a40505;
+  color: black;
+}
+
+.modal-header2 h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.close-button2 {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #1a1a1a; /* deep black for a sleek look */
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  opacity: 0.8;
+}
+
+.close-button2:hover {
+  transform: translateY(-50%) scale(1.2);
+  opacity: 1;
+}
+
+
+.modal-body2 {
+  padding: 20px;
+  background-color: #ffebee;
+}
+
+.confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /* Photos Tab Styles */
 .modal-overlay5 {
   position: fixed;
@@ -2381,6 +2468,86 @@ async deleteExpenseHandler(expense) {
   float: right;
 }
 
+
+.submit-button1, .cancel-button1 {
+  padding: 8px 15px;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.submit-button1 {
+  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
+  color: white;
+  box-shadow: 0 2px 5px rgba(106, 156, 137, 0.4);
+}
+
+.submit-button1:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7aa98c, #5e8873, #486858);
+  box-shadow: 0 4px 10px rgba(74, 109, 92, 0.6);
+}
+
+.cancel-button1 {
+  background: linear-gradient(to bottom, #5e5e5e, #3f3f3f); /* dark gray gradient */
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.cancel-button1:hover {
+  background: linear-gradient(to bottom, #4a4a4a, #2f2f2f); /* slightly darker on hover */
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cancel-button, .confirm-button {
+  padding: 8px 15px;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.cancel-button {
+  background: linear-gradient(to bottom, #5e5e5e, #3f3f3f); /* dark gray gradient */
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.cancel-button:hover {
+  background: linear-gradient(to bottom, #4a4a4a, #2f2f2f); /* slightly darker on hover */
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+.confirm-button {
+  background: linear-gradient(135deg, #e57373, #d32f2f, #b71c1c);
+  color: white;
+  box-shadow: 0 2px 5px rgba(211, 47, 47, 0.4);
+}
+
+.cancel-button:hover {
+  background: linear-gradient(to bottom, #4a4a4a, #2f2f2f); /* slightly darker on hover */
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-button:hover{
+  background: linear-gradient(135deg, #d32f2f, #b71c1c, #7f0000);
+  box-shadow: 0 4px 10px rgba(123, 0, 0, 0.6);
+}
+
 /* .photo-viewer-modal {
    Your existing modal styles 
 }*/
@@ -2400,9 +2567,9 @@ async deleteExpenseHandler(expense) {
 }
 
 .btn-confirm {
-  background: linear-gradient(135deg, #8bbcae, #6a9c89, #4f7a6b);
-  color: white;
-  box-shadow: 0 2px 5px rgba(106, 156, 137, 0.4);
+  background: linear-gradient(to bottom, #5e5e5e, #3f3f3f); /* dark gray gradient */
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 .btn-cancel1 {
   background: linear-gradient(135deg, #e57373, #d32f2f, #b71c1c);
@@ -2411,8 +2578,9 @@ async deleteExpenseHandler(expense) {
 }
 
 .btn-confirm:hover {
-  background: linear-gradient(135deg, #7aa98c, #5e8873, #486858);
-  box-shadow: 0 4px 10px rgba(74, 109, 92, 0.6);
+  background: linear-gradient(to bottom, #4a4a4a, #2f2f2f); /* slightly darker on hover */
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .btn-cancel1:hover{
