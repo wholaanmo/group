@@ -1,6 +1,7 @@
 const pool = require('../../config/database');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { genSaltSync, hashSync } = require('bcrypt'); 
 
 module.exports = {
     generateOTP: () => {
@@ -25,16 +26,34 @@ module.exports = {
     
     verifyOTP: async (email, otp) => {
         try {
+            if (!email || !otp) {
+                throw new Error('Email and OTP are required');
+            }
+    
+            const otpString = String(otp).trim();
+        
+            // Check OTP format (exactly 6 digits)
+            if (!/^\d{6}$/.test(otpString)) {
+                console.log('Invalid OTP format received:', otpString);
+                throw new Error('OTP must be exactly 6 digits');
+            }
+
             const [results] = await pool.execute(
                 'SELECT * FROM password_reset_otps WHERE email = ? AND otp = ? AND expiry > NOW()',
-                [email, otp]
+                [email, otpString]  // Use the string version
             );
             
-            return results.length > 0;
-        } catch (error) {
-            throw error;
-        }
-    },
+            if (results.length === 0) {
+                console.log('No valid OTP found for:', email);
+                return false;
+            }
+
+        return true;
+    } catch (error) {
+        console.error('OTP verification failed:', error);
+        throw error;
+    }
+},
     
     clearOTP: async (email) => {
         try {
@@ -50,6 +69,10 @@ module.exports = {
 
     updatePassword: async (email, newPassword) => {
         try {
+            if (!email || !newPassword) {
+                throw new Error('Email and new password are required');
+            }
+
             const salt = genSaltSync(10);
             const hashedPassword = hashSync(newPassword, salt);
             
@@ -57,9 +80,14 @@ module.exports = {
                 'UPDATE users SET password = ? WHERE email = ?',
                 [hashedPassword, email]
             );
+
+            if (results.affectedRows === 0) {
+                throw new Error('No user found with that email');
+            }
             
             return results.affectedRows > 0;
         } catch (error) {
+            console.error('Password update error:', error);
             throw error;
         }
     },
