@@ -1,6 +1,103 @@
 const pool = require('../../config/database');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 module.exports = {
+    generateOTP: () => {
+        return crypto.randomInt(100000, 999999).toString();
+    },
+    
+    storeOTP: async (email, otp) => {
+        try {
+            const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
+            
+            await pool.execute(
+                'INSERT INTO password_reset_otps (email, otp, expiry) VALUES (?, ?, ?) ' +
+                'ON DUPLICATE KEY UPDATE otp = ?, expiry = ?',
+                [email, otp, expiry, otp, expiry]
+            );
+            
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    },
+    
+    verifyOTP: async (email, otp) => {
+        try {
+            const [results] = await pool.execute(
+                'SELECT * FROM password_reset_otps WHERE email = ? AND otp = ? AND expiry > NOW()',
+                [email, otp]
+            );
+            
+            return results.length > 0;
+        } catch (error) {
+            throw error;
+        }
+    },
+    
+    clearOTP: async (email) => {
+        try {
+            await pool.execute(
+                'DELETE FROM password_reset_otps WHERE email = ?',
+                [email]
+            );
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    updatePassword: async (email, newPassword) => {
+        try {
+            const salt = genSaltSync(10);
+            const hashedPassword = hashSync(newPassword, salt);
+            
+            const [results] = await pool.execute(
+                'UPDATE users SET password = ? WHERE email = ?',
+                [hashedPassword, email]
+            );
+            
+            return results.affectedRows > 0;
+        } catch (error) {
+            throw error;
+        }
+    },
+    
+    sendEmail: async (to, subject, text) => {
+        try {
+            // Create a transporter with more robust configuration
+            const transporter = nodemailer.createTransport({
+                service: process.env.EMAIL_SERVICE || 'gmail',
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false, // true for 465, false for other ports
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });    
+            
+            const mailOptions = {
+                from: `"Money Log" <${process.env.EMAIL_USER}>`,
+                to,
+                subject,
+                text,
+                html: `<p>${text.replace(/\n/g, '<br>')}</p>`
+            };
+            
+            const info = await transporter.sendMail(mailOptions);
+            console.log('Message sent: %s', info.messageId);
+            return true;
+        } catch (error) {
+            console.error('Email sending error:', error);
+            throw new Error(`Failed to send email: ${error.message}`);
+        }
+    },
+    
     deleteUser: async (id) => {
         const connection = await pool.getConnection();
         try {
