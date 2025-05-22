@@ -323,7 +323,7 @@
   </div>
 
   <div v-else-if="groupPhotos.length === 0" class="no-photos">
-    <p>No photos uploaded yet. Be the first to share!</p>
+    <p>No photos uploaded yet.</p>
   </div>
 
   <div v-else class="photos-grid">
@@ -339,9 +339,6 @@
       <div class="photo-meta">
         <p class="photo-description">{{ photo.description || 'No description' }}</p>
         <div class="photo-footer">
-          <span class="photo-uploader">
-            <i class="fas fa-user"></i> {{ photo.username }}
-          </span>
           <span class="photo-date">
             <i class="far fa-calendar-alt"></i> {{ formatDate(photo.created_at) }}
           </span>
@@ -357,18 +354,7 @@
       <button @click="closePhotoModal" class="close-button">&times;</button>
     </div>
     <div class="modal-body5">
-      <div v-if="uploadSuccess" class="upload-success-message">
-        <div class="success-icon">
-          <i class="fas fa-check-circle"></i>
-        </div>
-        <p>Photo uploaded successfully!</p>
-        <p>You may now close this modal.</p>
-        <button @click="closePhotoModal" class="success-close-button">
-          Close
-        </button>
-      </div>
-
-      <form v-else @submit.prevent="uploadPhoto">
+      <form @submit.prevent="uploadPhoto">
         <div class="form-group5">
           <label>Photo Description</label>
           <textarea v-model="newPhoto.description" placeholder="Add a description (optional)"></textarea>
@@ -423,13 +409,32 @@
   <div class="modal-content5">
     <div class="modal-header5">
       <h3>Photo Details</h3>
-      <button @click="viewingPhoto = null" class="close-button">&times;</button>
+      <button @click="viewingPhoto = null; resetZoom()" class="close-button">&times;</button>
     </div>
     <div class="modal-body5">
-      <img :src="viewingPhoto.image_url" :alt="viewingPhoto.description">
+      <div class="image-container" @wheel.prevent="handleWheelZoom">
+        <img 
+          :src="viewingPhoto.image_url" 
+          :alt="viewingPhoto.description"
+          :style="zoomStyle"
+          ref="zoomImage"
+          @mousedown="startDrag"
+        >
+      </div>
+      <div class="zoom-controls">
+        <button @click="zoomIn" class="zoom-btn" title="Zoom In">
+          <i class="fas fa-search-plus"></i>
+        </button>
+        <button @click="zoomOut" class="zoom-btn" title="Zoom Out">
+          <i class="fas fa-search-minus"></i>
+        </button>
+        <button @click="resetZoom" class="zoom-btn" title="Reset Zoom">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
       <div class="photo-details">
         <p v-if="viewingPhoto.description" class="photo-description">{{ viewingPhoto.description }}</p>
-        <p class="photo-meta">Uploaded by {{ viewingPhoto.username }} on {{ formatDate(viewingPhoto.created_at) }}</p>
+        <p class="photo-meta">Uploaded on {{ formatDate(viewingPhoto.created_at) }}</p>
       </div>
     </div>
   </div>
@@ -449,6 +454,11 @@
    components: { Navigation },
    data() {
      return {
+      zoomLevel: 1,
+    isDragging: false,
+    dragStart: { x: 0, y: 0 },
+    translate: { x: 0, y: 0 },
+    lastPosition: { x: 0, y: 0 },
       uploadSuccess: false,
       showConfirmationModal: false,
     confirmationTitle: '',
@@ -540,6 +550,13 @@
     ...mapState(['addExpenses', 'personalBudgets', 'usdExchangeRate']),
   ...mapGetters(['getTotalAmount', 'getCurrentBudget', 'getAvailableMonths', 'getAddExpenseMonthYear']),
   
+  zoomStyle() {
+    return {
+      transform: `scale(${this.zoomLevel}) translate(${this.translate.x}px, ${this.translate.y}px)`,
+      cursor: this.zoomLevel > 1 ? 'grab' : 'default'
+    };
+  },
+
   hasBudgetForCurrentMonth() {
     return this.currentMonthBudget?.budget_amount > 0;
   },
@@ -738,6 +755,58 @@ beforeUnmount() {
        'setSelectedMonthYear' ,
        'fetchAddExpenses' 
      ]),
+
+     zoomIn() {
+    if (this.zoomLevel < 3) {
+      this.zoomLevel += 0.1;
+    }
+  },
+  zoomOut() {
+    if (this.zoomLevel > 0.5) {
+      this.zoomLevel -= 0.1;
+    }
+  },
+  resetZoom() {
+    this.zoomLevel = 1;
+    this.translate = { x: 0, y: 0 };
+    this.lastPosition = { x: 0, y: 0 };
+  },
+  handleWheelZoom(e) {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      this.zoomIn();
+    } else {
+      this.zoomOut();
+    }
+  },
+  startDrag(e) {
+    if (this.zoomLevel <= 1) return;
+    
+    this.isDragging = true;
+    this.dragStart = {
+      x: e.clientX - this.lastPosition.x,
+      y: e.clientY - this.lastPosition.y
+    };
+    document.addEventListener('mousemove', this.dragImage);
+    document.addEventListener('mouseup', this.stopDrag);
+  },
+  dragImage(e) {
+    if (!this.isDragging) return;
+    
+    this.translate = {
+      x: e.clientX - this.dragStart.x,
+      y: e.clientY - this.dragStart.y
+    };
+  },
+  stopDrag() {
+    this.isDragging = false;
+    this.lastPosition = {
+      x: this.translate.x,
+      y: this.translate.y
+    };
+    document.removeEventListener('mousemove', this.dragImage);
+    document.removeEventListener('mouseup', this.stopDrag);
+  },
 
      handleImageError(event) {
   const incorrectUrl = event.target.src;
@@ -1183,7 +1252,6 @@ handleFileSelect(event) {
         image_url: response.data.photo.image_url,
         description: response.data.photo.description,
         user_id: user.id,
-        username: user.username,
         created_at: new Date().toISOString()
       };
 
@@ -1941,6 +2009,47 @@ async deleteExpenseHandler(expense) {
 
  
 <style scoped>
+.image-container {
+  width: 100%;
+  height: 250px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  transition: transform 0.2s ease;
+  transform-origin: center center;
+}
+
+.zoom-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.zoom-btn {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.zoom-btn:hover {
+  background: #e0e0e0;
+}
+
+.photo-view-modal .modal-content5 {
+  max-width: 800px;
+}
 .upload-success-message {
   text-align: center;
   padding: 20px;
