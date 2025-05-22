@@ -350,14 +350,25 @@
     </div>
   </div>
 
-    <div v-if="showUploadModal" class="modal-overlay5">
+  <div v-if="showUploadModal" class="modal-overlay5">
   <div class="modal-content5 photo-upload-modal">
     <div class="modal-header5">
-      <h3>Upload Photo</h3>
+      <h3>{{ uploadSuccess ? 'Upload Complete' : 'Upload Photo' }}</h3>
       <button @click="closePhotoModal" class="close-button">&times;</button>
     </div>
     <div class="modal-body5">
-      <form @submit.prevent="uploadPhoto">
+      <div v-if="uploadSuccess" class="upload-success-message">
+        <div class="success-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <p>Photo uploaded successfully!</p>
+        <p>You may now close this modal.</p>
+        <button @click="closePhotoModal" class="success-close-button">
+          Close
+        </button>
+      </div>
+
+      <form v-else @submit.prevent="uploadPhoto">
         <div class="form-group5">
           <label>Photo Description</label>
           <textarea v-model="newPhoto.description" placeholder="Add a description (optional)"></textarea>
@@ -438,6 +449,7 @@
    components: { Navigation },
    data() {
      return {
+      uploadSuccess: false,
       showConfirmationModal: false,
     confirmationTitle: '',
     confirmationMessage: '',
@@ -1176,8 +1188,7 @@ handleFileSelect(event) {
       };
 
       this.groupPhotos.unshift(photo);
-      this.$toast.success('Photo uploaded successfully!');
-      this.resetPhotoForm(); // Explicitly close the modal here
+      this.uploadSuccess = true; 
       this.$nextTick(() => {
         this.showUploadModal = false;
       });
@@ -1206,9 +1217,15 @@ openPhotoModal(photo) {
   },
   
   closePhotoModal() {
-  this.resetPhotoForm();
+  this.showUploadModal = false;
+  this.uploadSuccess = false;
+  this.newPhoto = { description: '', file: null };
+  this.photoPreview = null;
+  if (this.$refs.photoInput) {
+    this.$refs.photoInput.value = '';
+  }
 },
-  
+
 confirmDeletePhoto(photo) {
   if (!this.canDeletePhoto(photo)) {
     this.$toast.error("You don't have permission to delete this photo");
@@ -1924,6 +1941,32 @@ async deleteExpenseHandler(expense) {
 
  
 <style scoped>
+.upload-success-message {
+  text-align: center;
+  padding: 20px;
+}
+
+.success-icon {
+  font-size: 60px;
+  color: #4CAF50;
+  margin-bottom: 20px;
+}
+
+.success-close-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-top: 20px;
+  transition: background-color 0.3s;
+}
+
+.success-close-button:hover {
+  background-color: #45a049;
+}
 .modal-overlay2 {
   position: fixed;
   top: 0;
@@ -1998,20 +2041,37 @@ async deleteExpenseHandler(expense) {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  /* Add these transition properties */
+  transition: opacity 0.3s ease;
+}
+
+/* Add this new class for hidden state */
+.modal-overlay5.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .modal-content5 {
   background-color: #f9fefc;
   border-radius: 16px;
+  width: 90%;
   max-width: 500px;
-  width: 100%;
-  margin: 60px auto;
+  margin: 20px auto;
   padding: 0;
   font-family: 'Poppins', sans-serif;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  max-height: 90vh; 
+  max-height: 90vh;
+  /* Add transform for smooth animation */
+  transform: translateY(0);
+  transition: transform 0.3s ease;
 }
+
+/* Add this for hidden modal content */
+.modal-overlay5.hidden .modal-content5 {
+  transform: translateY(-20px);
+}
+
 
 .modal-header5 {
   padding: 30px 30px;
