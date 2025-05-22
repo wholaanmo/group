@@ -301,7 +301,7 @@
         </div>
                 
         <div v-else class="expenses-container">
-          <h3><i class="fas fa-coins"></i> <span>YOUR <br> EXPENSES</span></h3> 
+          <h3><i class="fas fa-coins"></i> <span>GROUP EXPENSES</span></h3> 
           <div class="expenses-section"> 
             <div class="expenses-table"> 
               <table>
@@ -1129,10 +1129,20 @@ export default {
     };
   },
 
-    hasGroupAccess() {
-      const user = JSON.parse(localStorage.getItem('user'));
-      return this.group?.id && this.members?.some(m => m.id === user?.id);
-    }
+  hasGroupAccess() {
+  const user = JSON.parse(localStorage.getItem('user'));
+  if (!user || !this.group?.id) return false;
+  
+  // Check if user is in members list
+  const isMember = this.members?.some(m => m.id === user.id);
+  
+  // Also check pending invites in case the UI hasn't updated yet
+  const hasPendingInvite = this.pendingInvites?.some(
+    invite => invite.group_id === this.group.id && invite.email === user.email
+  );
+  
+  return isMember || hasPendingInvite;
+}
   },
 
   watch: {
@@ -1946,30 +1956,35 @@ async acceptInvite(invite) {
         });
         
         // Refresh the invites list
-        await this.fetchPendingInvites();
+        await this.fetchUserGroups();
+       // await this.fetchPendingInvites();
         
         // If we're not currently in a group, navigate to the new group
-        if (!this.localGroupId) {
-          this.$router.push({
-            name: 'Group',
-            params: { groupId: invite.group_id }
-          });
-        }
-        // If we're already in this group, refresh the data
-        else if (this.localGroupId === invite.group_id) {
-          await this.fetchGroupData();
-        }
+        if (!this.localGroupId || this.localGroupId !== invite.group_id) {
+        this.$router.push({
+          name: 'Group',
+          params: { groupId: invite.group_id }
+        });
+      } else {
+        await Promise.all([
+          this.fetchGroupData(),
+          this.fetchContributions(),
+          this.fetchContributionHistory(),
+          this.fetchPhotos()
+        ]);
+      }
         
         this.showInvitesModal = false;
       }
     } catch (err) {
-      this.$notify({
-        title: 'Error',
-        message: err.response?.data?.message || 'Failed to accept invitation',
-        type: 'error'
-      });
-    }
-  },
+    console.error('Failed to accept invitation:', err);
+    this.$notify({
+      title: 'Error',
+      message: err.response?.data?.message || 'Failed to accept invitation',
+      type: 'error'
+    });
+  }
+},
 
 async updateMemberContributions() {
   if (!this.members || !this.contributions) {
@@ -2853,7 +2868,7 @@ showError(message) {
 
   try {
     const response = await this.$axios.post(
-      `/api/grp_expenses/groups/${this.localGroupId}/members/invite`,
+      `/api/grp_expenses/${this.localGroupId}/members/invite`,
       { 
         email: this.inviteEmail 
       },
@@ -3005,17 +3020,36 @@ showError(message) {
   };
 },
 
- beforeRouteEnter(to, from, next) {
+beforeRouteEnter(to, from, next) {
+  next(async vm => {
     if (!to.params.groupId) {
       next('/GC');
-    } else {
-      next(vm => {
-        if (!vm.hasGroupAccess) {
-          vm.$router.replace('/GC');
-        }
-      });
+      return;
     }
-  },
+    
+    try {
+      // Wait for initial data load
+      await vm.initializeGroupData();
+      
+      // Check access again after data load
+      if (!vm.hasGroupAccess) {
+        // Check for pending invites
+        await vm.checkPendingInvites();
+        
+        if (vm.pendingInvites.some(i => i.group_id == to.params.groupId)) {
+          // Show invite modal if they have a pending invite
+          vm.showInvitesModal = true;
+          return;
+        }
+        
+        next('/GC');
+      }
+    } catch (err) {
+      console.error('Route guard error:', err);
+      next('/GC');
+    }
+  });
+},
 
   beforeRouteUpdate(to, from, next) {
   if (!to.params.groupId) {
@@ -3042,6 +3076,55 @@ showError(message) {
 </script>
 
 <style scoped>
+.modal-overlay10 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content10 {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.invite-item10 {
+  margin-bottom: 15px;
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 5px;
+}
+
+.accept-button10 {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.close-button10 {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 20px;
+}
 .image-container {
   width: 100%;
   height: 250px;
@@ -3199,11 +3282,11 @@ showError(message) {
 }
 
 .upload-photo-btn {
-  background: linear-gradient(135deg, #8fc4b4, #72aa95, #548271);
+  background: linear-gradient(135deg, #9bd2c2, #72aa95, #649b87);
   color: white;
-  font-size: 16px;
-  border: 1px solid #477759;
-  padding: 13px 30px;
+  font-size: 14px;
+  border: none;
+  padding: 10px 30px;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
@@ -4501,15 +4584,15 @@ showError(message) {
 
 h2 {
   color: #ffffff;
-  padding: 14px 20px;
+  padding: 10px 20px;
   border-radius: 10px;
   text-align: center;
   margin-bottom: 20px;
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 600;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.222);
   letter-spacing: 0.5px;
-  border: 1px solid #497d5b;
+  border: none;
   background: linear-gradient(135deg, #8fc4b4, #72aa95, #548271);
 }
 
@@ -4604,7 +4687,7 @@ h2 {
 }
 
 .total-amount-card {
-  background: #d0ebdd;
+  background: #d0ebe3;
   border-radius: 10px;
   height: 70px;
   padding: 14px 16px;
@@ -4662,7 +4745,7 @@ h2 {
 .expenses-section {
   overflow-x: auto;
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .expenses-container h3 {
@@ -4705,7 +4788,7 @@ h2 {
 }
 
 .expenses-table th {
-  background-color: #6A9C89;              /* your base green */
+  background-color: #6ea792;              /* your base green */
   color: white;
   position: sticky;
   top: 0;
@@ -5578,12 +5661,14 @@ Z
 
 .input-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
 }
 
 .setting-input {
   flex: 1;
+  width: 100%;
   padding: 10px 14px;
   border: 1px solid #c8d8d0;
   border-radius: 8px;
