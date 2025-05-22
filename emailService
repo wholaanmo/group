@@ -1,0 +1,62 @@
+const nodemailer = require('nodemailer');
+
+// Configure your email transporter
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+module.exports = {
+  sendInvitationEmail: async ({ email, token, groupName, inviterName }) => {
+    const acceptLink = `${process.env.FRONTEND_URL}/login?inviteToken=${token}`;
+    const loginLink = `${process.env.FRONTEND_URL}/login`;
+    const signupLink = `${process.env.FRONTEND_URL}/register`;
+    
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `You've been invited to join ${groupName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4CAF50;">Group Expense Tracker Invitation</h2>
+          <p>Hello,</p>
+          <p>You've been invited by <strong>${inviterName}</strong> to join the group <strong>${groupName}</strong> on Group Expense Tracker.</p>
+          
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <h3 style="margin-top: 0;">How to join:</h3>
+            <ol>
+              <li>Click the "Accept Invitation" button below</li>
+              <li>If you have an account, log in with your credentials</li>
+              <li>If you don't have an account, you'll be prompted to create one</li>
+              <li>You'll automatically be added to the group</li>
+            </ol>
+          </div>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${acceptLink}" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+              Accept Invitation
+            </a>
+          </div>
+          
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <p><code>${acceptLink}</code></p>
+          
+          <p>This invitation will expire in 7 days.</p>
+          <p>If you didn't request this invitation, you can safely ignore this email.</p>
+          <p>Best regards,<br>The Group Expense Tracker Team</p>
+        </div>
+      `
+    };
+    
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`Invitation email sent to ${email}`);
+    } catch (err) {
+      console.error('Error sending invitation email:', err);
+      throw err;
+    }
+  }
+};
