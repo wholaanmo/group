@@ -4,6 +4,16 @@ const groupController = require('./group.controller');
 const { checkToken } = require('../../auth/token_validation');
 const groupAuth = require('../../auth/groupAuth');
 
+router.use((req, res, next) => {
+    console.log(`Incoming ${req.method} request to: ${req.originalUrl}`);
+    next();
+  });
+
+  router.post('/test-invite', (req, res) => {
+    console.log('Test invite route hit');
+    res.json({ success: true });
+  });
+
 router.post('/create', checkToken, groupController.createGroup);
 router.post('/join', checkToken, groupController.joinGroup);
 router.get('/my-groups', checkToken, groupController.getUserGroups);
@@ -14,6 +24,15 @@ router.get('/:groupId/members', checkToken, groupAuth('member'), groupController
 
 // Admin-only routes
 router.delete('/:groupId', checkToken, groupAuth('admin'), groupController.deleteGroup);
-router.post('/:groupId/invite', checkToken, groupAuth('admin'), groupController.inviteMember);
+//router.post('/:groupId/members/invite', checkToken, groupAuth('admin'), groupController.inviteMember);
+
+router.post('/:groupId/members/invite', checkToken, groupAuth('admin'), (req, res, next) => {
+    console.log('Invite route hit - params:', req.params);
+    console.log('Invite route hit - body:', req.body);
+    next();
+  }, groupController.inviteMember);
+
+router.get('/invite/accept', groupController.acceptInvite);
+router.get('/pending-invites', checkToken, groupController.getPendingInvites);
 
 module.exports = router;
