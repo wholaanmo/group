@@ -11,8 +11,19 @@
                       <input v-model="email" type="text" name="email" class="text-style" required>
                       
                       <label class="form-label">PASSWORD</label>
-                      <input v-model="password" type="password" name="password" class="text-style" required>  
-                  </div>
+                      <div class="password-input-wrapper">
+                        <input 
+                          v-model="password" 
+                          :type="showPassword ? 'text' : 'password'" 
+                          name="password" 
+                          class="text-style" 
+                          required
+                        >
+                        <span class="password-toggle" @click="togglePasswordVisibility">
+                          <i :class="showPassword ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+                        </span>
+                      </div>
+                      </div>
 
                   <p v-if="message" class="error">{{ message }}</p>
                   
@@ -40,7 +51,13 @@
     <div v-if="otpSent && !otpVerified">
       <div class="input-group">
         <label>OTP</label>
-        <input v-model="otp" type="text" placeholder="Enter 6-digit OTP">
+        <input 
+    v-model="otp" 
+    type="text" 
+    placeholder="Enter 6-digit OTP"
+    maxlength="6"
+    @input="otp = otp.replace(/[^0-9]/g, '')"
+>
       </div>
       <button @click="verifyOTP" class="reset-btn">Verify OTP</button>
       <button @click="resendOTP" class="resend-btn">Resend OTP</button>
@@ -49,11 +66,37 @@
     <div v-if="otpVerified">
       <div class="input-group">
         <label>New Password</label>
-        <input v-model="newPassword" type="password" placeholder="Enter new password">
-      </div>
+        <div class="password-input-wrapper">
+        <input 
+    v-model="newPassword" 
+    :type="showNewPassword ? 'text' : 'password'" 
+    placeholder="Enter new password" 
+    @input="checkPasswordStrength"
+    required
+  >
+  <span class="password-toggle"  @click="togglePasswordVisibility">
+    <i :class="showNewPassword ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+  </span>
+  </div>
+        <div class="password-strength" v-if="newPassword.length > 0">
+      <div class="strength-bar" :style="{ width: (strengthScore * 20) + '%', backgroundColor: strengthColor }"></div>
+      <span class="strength-text" :style="{ color: strengthColor }">
+        {{ strengthMessage }}
+      </span>
+    </div>
+    </div>
+    <div class="password-input-wrapper">
       <div class="input-group">
         <label>Confirm Password</label>
-        <input v-model="confirmPassword" type="password" placeholder="Confirm new password">
+        <input 
+    v-model="confirmPassword" 
+    :type="showConfirmPassword ? 'text' : 'password'" 
+    placeholder="Confirm new password"
+  >
+  <span class="password-toggle1" @click="togglePasswordVisibility1">
+    <i :class="showConfirmPassword ? 'fas fa-eye' : 'fas fa-eye-slash'"></i>
+  </span>
+  </div>
       </div>
       <button @click="resetPassword" class="reset-btn">Reset Password</button>
     </div>
@@ -77,7 +120,7 @@
   </template>
   
   <script>
-  import { ref } from 'vue';
+ import { ref, computed } from 'vue';
   import axios from 'axios';
   import { useRouter } from 'vue-router';
   
@@ -86,6 +129,9 @@
       const router = useRouter();
       const email = ref('');
       const password = ref('');
+      const showPassword = ref(true);
+      const showNewPassword = ref(true);
+      const showConfirmPassword = ref(true);
       const message = ref('');
       const showForgotPassword = ref(false);
       const resetEmail = ref('');
@@ -98,6 +144,61 @@
       const confirmPassword = ref('');
       const resetToken = ref('');
   
+      const togglePasswordVisibility = () => {
+      showPassword.value = !showPassword.value;
+      showNewPassword.value = !showNewPassword.value;
+    };
+
+    const togglePasswordVisibility1 = () => {
+      showConfirmPassword.value = !showConfirmPassword.value;
+    };
+
+    const strengthScore = computed(() => {
+      let score = 0;
+      const pass = newPassword.value;
+      
+      if (pass.length >= 8) score++;
+      
+      if (/[a-z]/.test(pass)) score++;
+      
+      if (/[A-Z]/.test(pass)) score++;
+      
+      if (/\d/.test(pass)) score++;
+ 
+      if (/[^A-Za-z0-9]/.test(pass)) score++;
+      
+      return score;
+    });
+
+    // Strength classification
+    const strengthClass = computed(() => {
+      if (newPassword.value.length === 0) return '';
+      if (strengthScore.value <= 2) return 'weak';
+      if (strengthScore.value <= 3) return 'medium';
+      return 'strong';
+    });
+
+     // Strength message
+     const strengthMessage = computed(() => {
+      if (newPassword.value.length === 0) return '';
+      switch(strengthClass.value) {
+        case 'weak': return 'Weak Password';
+        case 'medium': return 'Medium Strength';
+        case 'strong': return 'Strong Password';
+        default: return '';
+      }
+    });
+
+    // Strength color
+    const strengthColor = computed(() => {
+      switch(strengthClass.value) {
+        case 'weak': return 'red';
+        case 'medium': return 'orange';
+        case 'strong': return 'green';
+        default: return 'gray';
+      }
+    });
+
       const closeModal = () => {
         showForgotPassword.value = false;
         resetEmail.value = '';
@@ -134,7 +235,7 @@
           } else {
             resetMessage.value = response.data.message || 'Failed to send OTP';
           }
-        } catch (error) {
+    } catch (error) {
         console.error('Full OTP error:', error);
         console.error('Response data:', error.response?.data);
         resetMessage.value = error.response?.data?.message || 
@@ -151,29 +252,49 @@
           resetMessage.value = 'OTP is required';
           return;
         }
+
+        const otpString = String(otp.value).trim();
+
+// Client-side validation
+if (!/^\d{6}$/.test(otpString)) {
+    resetMessage.value = 'OTP must be exactly 6 digits';
+    return;
+}
   
         try {
+          console.log('Verifying OTP for:', resetEmail.value);
           const response = await axios.post(
             'http://localhost:3000/api/users/verify-otp',
             { 
               email: resetEmail.value,
-              otp: otp.value 
+              otp: otpString
             }
           );
+
+          console.log('OTP verification response:', response.data);
   
           if (response.data.success) {
             otpVerified.value = true;
             resetToken.value = response.data.token;
             resetSuccess.value = true;
-            resetMessage.value = 'OTP verified. Please set a new password.';
+            resetMessage.value = response.data.message || 'OTP verified. Please set a new password.';
           } else {
             resetMessage.value = response.data.message || 'Invalid OTP';
           }
         } catch (error) {
-          console.error('OTP verification error:', error);
-          resetMessage.value = 'Error verifying OTP. Please try again.';
+        console.error('Full OTP verification error:', error);
+        console.error('Error response:', error.response?.data);
+        
+        // Show specific error message if available
+        if (error.response?.data?.message === "OTP must be exactly 6 digits") {
+            resetMessage.value = 'Please enter exactly 6 digits for OTP';
+        } else {
+            resetMessage.value = error.response?.data?.message || 
+                               error.response?.data?.error || 
+                               'Error verifying OTP. Please try again.';
         }
-      };
+    }
+};
   
       const resendOTP = async () => {
         await sendOTP();
@@ -189,12 +310,22 @@
           return;
         }
   
-        if (newPassword.value.length < 6) {
-          resetMessage.value = 'Password must be at least 6 characters';
-          return;
-        }
+      if (newPassword.value.length < 8) {
+        resetMessage.value = 'Password must be at least 8 characters';
+        return;
+      }
   
+      if (strengthScore.value < 4) {
+        resetMessage.value = 'Password must be strong! Include uppercase, lowercase, numbers, and special characters.';
+        return;
+      }
+
         try {
+        console.log('Attempting password reset with:', {
+            email: resetEmail.value,
+            token: resetToken.value
+        });
+
           const response = await axios.post(
             'http://localhost:3000/api/users/reset-password-otp',
             { 
@@ -204,6 +335,9 @@
             }
           );
   
+          
+        console.log('Password reset response:', response.data);
+
           if (response.data.success) {
             resetSuccess.value = true;
             resetMessage.value = 'Password reset successfully. You can now login with your new password.';
@@ -213,11 +347,15 @@
           } else {
             resetMessage.value = response.data.message || 'Failed to reset password';
           }
-        } catch (error) {
-          console.error('Password reset error:', error);
-          resetMessage.value = 'Error resetting password. Please try again.';
-        }
-      };
+         } catch (error) {
+        console.error('Full password reset error:', error);
+        console.error('Error response:', error.response?.data);
+        
+        resetMessage.value = error.response?.data?.message || 
+                           error.response?.data?.error || 
+                           'Error resetting password. Please try again.';
+    }
+};
   
       const loginUser = async () => {
         message.value = ''; // Reset error message
@@ -262,6 +400,11 @@
         email,
         password,
         message,
+        showPassword,
+        showNewPassword,
+        showConfirmPassword,
+        togglePasswordVisibility, 
+        togglePasswordVisibility1, 
         loginUser,
         showForgotPassword,
         resetEmail,
@@ -276,7 +419,11 @@
         sendOTP,
         verifyOTP,
         resendOTP,
-        resetPassword
+        resetPassword,
+        strengthScore,
+      strengthClass,
+      strengthMessage,
+      strengthColor
       };
     },
   };
@@ -284,6 +431,40 @@
   
   
   <style scoped>
+ .password-input-wrapper {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 40%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #72aa95;
+  font-size: 16px;
+}
+
+.password-toggle1 {
+  position: absolute;
+  right: 10px;
+  top: 70%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #72aa95;
+  font-size: 16px;
+}
+
+.password-toggle:hover {
+  color: #548271;
+}
+
+/* Make sure your password input has padding on the right to accommodate the icon */
+.text-style[type="password"],
+.text-style[type="text"] {
+  padding-right: 35px;
+  width: 100%;
+}
   .forgot-password {
 display: block;
 margin-top: 15px;
@@ -299,65 +480,172 @@ text-decoration: underline;
 }
 
 .forgot-password-modal {
-position: fixed;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-background-color: rgba(0,0,0,0.5);
-display: flex;
-justify-content: center;
-align-items: center;
-z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .modal-content {
-background: white;
-padding: 20px;
-border-radius: 5px;
-width: 90%;
-max-width: 400px;
+  background-color: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .close {
-float: right;
-font-size: 1.5em;
-cursor: pointer;
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #7aa093; /* softened tone for default */
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+  background: none;
+  border: none;
+  outline: none;
 }
+
+.close:hover {
+  color: #548271;
+  transform: scale(1.2); /* subtle zoom effect */
+}
+
+
 
 h2 {
-color: #4CAF50;
+  color: #4f7a6b;
+  margin-bottom: 25px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #8fc4b4, #72aa95);
+  background-clip: text;
+  color: transparent;
+  transition: transform 0.3s ease;
 }
 
+
 .input-group {
-margin: 15px 0;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .input-group label {
-display: block;
-font-size: 14px;
-margin-bottom: 5px;
+  color: #4f7a6b;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: color 0.3s;
 }
 
 .input-group input {
-width: 95%;
-padding: 8px;
-border: 1px solid #ddd;
-border-radius: 5px;
+  width: 100%;
+  box-sizing: border-box; /* Ensures padding & border stay inside the container */
+  padding: 12px 16px;
+  border: 1px solid #cfeae2;
+  border-radius: 10px;
+  font-size: 15.5px;
+  background-color: #f7fbfa;
+  transition: border-color 0.3s, box-shadow 0.3s, background-color 0.3s;
 }
 
+.input-group input::placeholder {
+  color: #a3b9b2;
+}
+
+
+.input-group input:focus {
+  border-color: #72aa95;
+  outline: none;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(143, 196, 180, 0.25);
+}
+
+.input-group input:focus + label,
+.input-group input:focus-visible + label {
+  color: #548271;
+}
+
+
 .reset-btn {
-width: 100%;
-padding: 10px;
-background-color: #4CAF50;
-color: white;
-border: none;
-border-radius: 4px;
-cursor: pointer;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #8fc4b4, #72aa95, #548271);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.4s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 14px rgba(84, 130, 113, 0.25);
 }
 
 .reset-btn:hover {
-background-color: #45a049;
+  background: linear-gradient(135deg, #a8d8cb, #7fb9a2, #4f7a6b);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(84, 130, 113, 0.35);
+}
+
+.reset-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(84, 130, 113, 0.3);
+}
+
+
+
+
+.resend-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #8fc4b4, #72aa95, #548271);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.4s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 14px rgba(84, 130, 113, 0.25);
+}
+
+.resend-btn:hover {
+  background: linear-gradient(135deg, #a8d8cb, #7fb9a2, #4f7a6b);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(84, 130, 113, 0.35);
+}
+
+.resend-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(84, 130, 113, 0.3);
+}
+@media (max-width: 480px) {
+  .modal-content {
+    width: 90%;
+    padding: 20px;
+  }
 }
 
 .success {
@@ -372,6 +660,7 @@ background-color: #45a049;
   border: 1px solid #ff4444;
   padding: 5px;
 }
+
 
 @keyframes flash {
     0% { opacity: 0.5; }
