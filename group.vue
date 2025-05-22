@@ -639,18 +639,36 @@
   <div class="modal-content5">
     <div class="modal-header5">
       <h3>Photo Details</h3>
-      <button @click="viewingPhoto = null" class="close-button">&times;</button>
+      <button @click="viewingPhoto = null; resetZoom()" class="close-button">&times;</button>
     </div>
     <div class="modal-body5">
-      <img :src="viewingPhoto.image_url" :alt="viewingPhoto.description">
+      <div class="image-container" @wheel.prevent="handleWheelZoom">
+        <img 
+          :src="viewingPhoto.image_url" 
+          :alt="viewingPhoto.description"
+          :style="zoomStyle"
+          ref="zoomImage"
+          @mousedown="startDrag"
+        >
+      </div>
+      <div class="zoom-controls">
+        <button @click="zoomIn" class="zoom-btn" title="Zoom In">
+          <i class="fas fa-search-plus"></i>
+        </button>
+        <button @click="zoomOut" class="zoom-btn" title="Zoom Out">
+          <i class="fas fa-search-minus"></i>
+        </button>
+        <button @click="resetZoom" class="zoom-btn" title="Reset Zoom">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
       <div class="photo-details">
         <p v-if="viewingPhoto.description" class="photo-description">{{ viewingPhoto.description }}</p>
-        <p class="photo-meta">Uploaded by {{ viewingPhoto.username }} on {{ formatDate(viewingPhoto.created_at) }}</p>
+        <p class="photo-meta">Uploaded on {{ formatDate(viewingPhoto.created_at) }}</p>
       </div>
     </div>
   </div>
 </div>
-
     <!-- Add Expense Modal -->
     <div v-if="showAddExpenseModal" class="modal-overlay">
   <div class="modal-content2">
@@ -903,6 +921,11 @@ export default {
   },
   data() {
     return {
+      zoomLevel: 1,
+    isDragging: false,
+    dragStart: { x: 0, y: 0 },
+    translate: { x: 0, y: 0 },
+    lastPosition: { x: 0, y: 0 },
       pendingInvites: [],
       showInvitesModal: false,
       memberContributions: [],
@@ -1018,6 +1041,13 @@ export default {
       isAdmin: state => state.isAdmin,
       groupBudget: state => state.groupBudget || {}
     }),
+
+    zoomStyle() {
+    return {
+      transform: `scale(${this.zoomLevel}) translate(${this.translate.x}px, ${this.translate.y}px)`,
+      cursor: this.zoomLevel > 1 ? 'grab' : 'default'
+    };
+  },
 
     totalContributions() {
     if (!this.contributions) return 0;
@@ -1267,6 +1297,58 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
+
+    zoomIn() {
+    if (this.zoomLevel < 3) {
+      this.zoomLevel += 0.1;
+    }
+  },
+  zoomOut() {
+    if (this.zoomLevel > 0.5) {
+      this.zoomLevel -= 0.1;
+    }
+  },
+  resetZoom() {
+    this.zoomLevel = 1;
+    this.translate = { x: 0, y: 0 };
+    this.lastPosition = { x: 0, y: 0 };
+  },
+  handleWheelZoom(e) {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      this.zoomIn();
+    } else {
+      this.zoomOut();
+    }
+  },
+  startDrag(e) {
+    if (this.zoomLevel <= 1) return;
+    
+    this.isDragging = true;
+    this.dragStart = {
+      x: e.clientX - this.lastPosition.x,
+      y: e.clientY - this.lastPosition.y
+    };
+    document.addEventListener('mousemove', this.dragImage);
+    document.addEventListener('mouseup', this.stopDrag);
+  },
+  dragImage(e) {
+    if (!this.isDragging) return;
+    
+    this.translate = {
+      x: e.clientX - this.dragStart.x,
+      y: e.clientY - this.dragStart.y
+    };
+  },
+  stopDrag() {
+    this.isDragging = false;
+    this.lastPosition = {
+      x: this.translate.x,
+      y: this.translate.y
+    };
+    document.removeEventListener('mousemove', this.dragImage);
+    document.removeEventListener('mouseup', this.stopDrag);
+  },
 
     handleImageError(event) {
   console.error('Image failed to load:', event.target.src);
@@ -2960,6 +3042,47 @@ showError(message) {
 </script>
 
 <style scoped>
+.image-container {
+  width: 100%;
+  height: 250px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  transition: transform 0.2s ease;
+  transform-origin: center center;
+}
+
+.zoom-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.zoom-btn {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.zoom-btn:hover {
+  background: #e0e0e0;
+}
+
+.photo-view-modal .modal-content5 {
+  max-width: 800px;
+}
 /* Photos Tab Styles */
 .modal-overlay5 {
   position: fixed;
