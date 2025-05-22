@@ -25,20 +25,45 @@
               </form>   
               
               <div v-if="showForgotPassword" class="forgot-password-modal">
-          <div class="modal-content">
-            <span class="close" @click="showForgotPassword = false">&times;</span>
-            <h2>Reset Password</h2>
-            <div class="input-group">
-              <label>Email Address</label>
-              <input v-model="resetEmail" type="email" placeholder="Enter your email">
-            </div>
-            <button @click="sendResetLink" class="reset-btn">Send Reset Link</button>
-            <p v-if="resetMessage" :class="{ 'success': resetSuccess, 'error': !resetSuccess }">
-              {{ resetMessage }}
-            </p>
-          </div>
-        </div>
+  <div class="modal-content">
+    <span class="close" @click="closeModal">&times;</span>
+    <h2>Reset Password</h2>
+    
+    <div v-if="!otpSent && !otpVerified">
+      <div class="input-group">
+        <label>Email Address</label>
+        <input v-model="resetEmail" type="email" placeholder="Enter your email">
       </div>
+      <button @click="sendOTP" class="reset-btn">Send OTP</button>
+    </div>
+    
+    <div v-if="otpSent && !otpVerified">
+      <div class="input-group">
+        <label>OTP</label>
+        <input v-model="otp" type="text" placeholder="Enter 6-digit OTP">
+      </div>
+      <button @click="verifyOTP" class="reset-btn">Verify OTP</button>
+      <button @click="resendOTP" class="resend-btn">Resend OTP</button>
+    </div>
+    
+    <div v-if="otpVerified">
+      <div class="input-group">
+        <label>New Password</label>
+        <input v-model="newPassword" type="password" placeholder="Enter new password">
+      </div>
+      <div class="input-group">
+        <label>Confirm Password</label>
+        <input v-model="confirmPassword" type="password" placeholder="Confirm new password">
+      </div>
+      <button @click="resetPassword" class="reset-btn">Reset Password</button>
+    </div>
+    
+    <p v-if="resetMessage" :class="{ 'success': resetSuccess, 'error': !resetSuccess }">
+      {{ resetMessage }}
+    </p>
+  </div>
+</div>
+</div>
               
       <div class="login-deco-container">
       <div class="login-deco">
@@ -66,6 +91,133 @@
       const resetEmail = ref('');
       const resetMessage = ref('');
       const resetSuccess = ref(false);
+      const otpSent = ref(false);
+      const otpVerified = ref(false);
+      const otp = ref('');
+      const newPassword = ref('');
+      const confirmPassword = ref('');
+      const resetToken = ref('');
+  
+      const closeModal = () => {
+        showForgotPassword.value = false;
+        resetEmail.value = '';
+        resetMessage.value = '';
+        otpSent.value = false;
+        otpVerified.value = false;
+        otp.value = '';
+        newPassword.value = '';
+        confirmPassword.value = '';
+      };
+  
+      const sendOTP = async () => {
+        resetMessage.value = '';
+        resetSuccess.value = false;
+  
+        if (!resetEmail.value) {
+          resetMessage.value = 'Email is required';
+          return;
+        }
+  
+        try {
+            console.log('Sending OTP request for:', resetEmail.value);
+          const response = await axios.post(
+            'http://localhost:3000/api/users/forgot-password',
+            { email: resetEmail.value }
+          );
+  
+          console.log('OTP response:', response.data);
+
+          if (response.data.success) {
+            otpSent.value = true;
+            resetSuccess.value = true;
+            resetMessage.value = response.data.message || 'OTP sent to your email';
+          } else {
+            resetMessage.value = response.data.message || 'Failed to send OTP';
+          }
+        } catch (error) {
+        console.error('Full OTP error:', error);
+        console.error('Response data:', error.response?.data);
+        resetMessage.value = error.response?.data?.message || 
+                          error.response?.data?.error ||
+                          'Error sending OTP. Please try again.';
+    }
+};
+  
+      const verifyOTP = async () => {
+        resetMessage.value = '';
+        resetSuccess.value = false;
+  
+        if (!otp.value) {
+          resetMessage.value = 'OTP is required';
+          return;
+        }
+  
+        try {
+          const response = await axios.post(
+            'http://localhost:3000/api/users/verify-otp',
+            { 
+              email: resetEmail.value,
+              otp: otp.value 
+            }
+          );
+  
+          if (response.data.success) {
+            otpVerified.value = true;
+            resetToken.value = response.data.token;
+            resetSuccess.value = true;
+            resetMessage.value = 'OTP verified. Please set a new password.';
+          } else {
+            resetMessage.value = response.data.message || 'Invalid OTP';
+          }
+        } catch (error) {
+          console.error('OTP verification error:', error);
+          resetMessage.value = 'Error verifying OTP. Please try again.';
+        }
+      };
+  
+      const resendOTP = async () => {
+        await sendOTP();
+        resetMessage.value = 'New OTP sent to your email';
+      };
+  
+      const resetPassword = async () => {
+        resetMessage.value = '';
+        resetSuccess.value = false;
+  
+        if (newPassword.value !== confirmPassword.value) {
+          resetMessage.value = 'Passwords do not match';
+          return;
+        }
+  
+        if (newPassword.value.length < 6) {
+          resetMessage.value = 'Password must be at least 6 characters';
+          return;
+        }
+  
+        try {
+          const response = await axios.post(
+            'http://localhost:3000/api/users/reset-password-otp',
+            { 
+              email: resetEmail.value,
+              newPassword: newPassword.value,
+              token: resetToken.value
+            }
+          );
+  
+          if (response.data.success) {
+            resetSuccess.value = true;
+            resetMessage.value = 'Password reset successfully. You can now login with your new password.';
+            setTimeout(() => {
+              closeModal();
+            }, 3000);
+          } else {
+            resetMessage.value = response.data.message || 'Failed to reset password';
+          }
+        } catch (error) {
+          console.error('Password reset error:', error);
+          resetMessage.value = 'Error resetting password. Please try again.';
+        }
+      };
   
       const loginUser = async () => {
         message.value = ''; // Reset error message
@@ -86,66 +238,46 @@
   
           if (response.data.success === 1) {
             localStorage.setItem('jsontoken', response.data.token);
-
-        localStorage.setItem('user', JSON.stringify({
-        id: response.data.user.id,
-        username: response.data.user.username, 
-        email: response.data.user.email,
-        isFirstLogin: response.data.isFirstLogin
-      }));
-
-        router.push('/profile');
-  } else {
-    message.value = response.data.message || 'Login failed.';
-  }
-} catch (error) {
-  console.error('Login error:', error);
-  if (error.response && error.response.status === 401) {
-    message.value = 'Invalid email or password.';
-  } else {
-    message.value = 'Login service unavailable. Please try again later.';
-  }
-}
-};
-
-const sendResetLink = async () => {
-resetMessage.value = '';
-resetSuccess.value = false;
-
-if (!resetEmail.value) {
-  resetMessage.value = 'Email is required';
-  return;
-}
-
-try {
-  const response = await axios.post(
-    'http://localhost:3000/api/users/forgot-password',
-    { email: resetEmail.value }
-  );
-
-  if (response.data.success) {
-    resetSuccess.value = true;
-    resetMessage.value = 'Password reset link sent to your email';
-  } else {
-    resetMessage.value = response.data.message || 'Failed to send reset link';
-  }
-} catch (error) {
-  console.error('Password reset error:', error);
-  resetMessage.value = 'Error sending reset link. Please try again.';
-}
-};
-
-return {
-email,
-password,
-message,
-loginUser,
-showForgotPassword,
-resetEmail,
-resetMessage,
-resetSuccess,
-sendResetLink
-};
+            localStorage.setItem('user', JSON.stringify({
+              id: response.data.user.id,
+              username: response.data.user.username, 
+              email: response.data.user.email,
+              isFirstLogin: response.data.isFirstLogin
+            }));
+            router.push('/profile');
+          } else {
+            message.value = response.data.message || 'Login failed.';
+          }
+        } catch (error) {
+          console.error('Login error:', error);
+          if (error.response && error.response.status === 401) {
+            message.value = 'Invalid email or password.';
+          } else {
+            message.value = 'Login service unavailable. Please try again later.';
+          }
+        }
+      };
+  
+      return {
+        email,
+        password,
+        message,
+        loginUser,
+        showForgotPassword,
+        resetEmail,
+        resetMessage,
+        resetSuccess,
+        otpSent,
+        otpVerified,
+        otp,
+        newPassword,
+        confirmPassword,
+        closeModal,
+        sendOTP,
+        verifyOTP,
+        resendOTP,
+        resetPassword
+      };
     },
   };
   </script>
