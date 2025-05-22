@@ -120,13 +120,14 @@
   </template>
   
   <script>
- import { ref, computed } from 'vue';
+ import { ref, computed, onMounted } from 'vue'; 
   import axios from 'axios';
-  import { useRouter } from 'vue-router';
+  import { useRouter, useRoute } from 'vue-router'; 
   
   export default {
     setup() {
       const router = useRouter();
+      const route = useRoute(); 
       const email = ref('');
       const password = ref('');
       const showPassword = ref(true);
@@ -143,7 +144,89 @@
       const newPassword = ref('');
       const confirmPassword = ref('');
       const resetToken = ref('');
-  
+      const redirectAfterLogin = ref('');
+
+      const inviteToken = route.query.inviteToken;
+    if (inviteToken) {
+      redirectAfterLogin.value = `/api/grp_expenses/accept-invite?token=${inviteToken}`;
+    }
+
+    const acceptInvitation = async (token) => {
+      try {
+        const response = await axios.get(
+          `/api/grp_expenses/accept-invite?token=${token}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+            }
+          }
+        );
+        
+        if (response.data.success) {
+          router.push({
+            name: 'Group',
+            params: { groupId: response.data.groupId },
+            query: { invite_accepted: 'true' }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to accept invitation:', error);
+        message.value = error.response?.data?.message || 'Failed to process invitation';
+      } finally {
+        localStorage.removeItem('invitationToken');
+      }
+    };
+
+    onMounted(() => {
+      const token = route.query.token;
+      if (token) {
+        localStorage.setItem('invitationToken', token);
+      }
+      
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user && token) {
+        acceptInvitation(token);
+      }
+    });
+
+    const handleLoginSuccess = async (response) => {
+      localStorage.setItem('jsontoken', response.data.token);
+      localStorage.setItem('user', JSON.stringify({
+        id: response.data.user.id,
+        username: response.data.user.username, 
+        email: response.data.user.email,
+        isFirstLogin: response.data.isFirstLogin
+      }));
+
+      const inviteToken = route.query.inviteToken || localStorage.getItem('invitationToken');
+
+  if (inviteToken) {
+    try {
+      const inviteResponse = await axios.get(
+        `/api/grp_expenses/invite/accept?token=${inviteToken}`,
+        {
+          headers: {
+            Authorization: `Bearer ${response.data.token}`
+          }
+        }
+      );
+      
+      if (inviteResponse.data.success) {
+        router.push({
+          name: 'Group',
+          params: { groupId: inviteResponse.data.data.groupId }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to accept invitation:', error);
+      // Fallback to regular redirect
+      router.push(route.query.redirect || '/profile');
+    }
+  } else {
+    router.push(route.query.redirect || '/profile');
+  }
+};
+    
       const togglePasswordVisibility = () => {
       showPassword.value = !showPassword.value;
       showNewPassword.value = !showNewPassword.value;
@@ -423,7 +506,9 @@ if (!/^\d{6}$/.test(otpString)) {
         strengthScore,
       strengthClass,
       strengthMessage,
-      strengthColor
+      strengthColor,
+      handleLoginSuccess ,
+      redirectAfterLogin 
       };
     },
   };
