@@ -67,7 +67,7 @@ module.exports = {
 
             return res.json({
                 success: 1,
-                message: "OTP sent to email if it exists in our system"
+                message: "OTP sent to email"
             });
         } catch (err) {
             console.error('Forgot password error:', err);
@@ -83,10 +83,33 @@ module.exports = {
         try {
             const { email, otp } = req.body;
             
-            const isValid = await verifyOTP(email, otp);
+            if (!email || !otp) {
+                return res.status(400).json({
+                    success: 0,
+                    message: "Email and OTP are required"
+                });
+            }
+
+            const otpString = String(otp).trim();
+
+            if (!/^\d{6}$/.test(otpString)) {
+                console.log('Invalid OTP format received:', otpString);
+                return res.status(400).json({
+                    success: 0,
+                    message: "OTP must be exactly 6 digits",
+                    received: otpString
+                });
+            }
+
+            const isValid = await verifyOTP(email, otpString);
+
+            if (!isValid) {
+                return res.status(400).json({
+                    success: 0,
+                    message: "Invalid or expired OTP"
+                });
+            }
             
-            if (isValid) {
-                // Generate a temporary token for password reset
                 const token = sign({ email }, "qwe1234", { expiresIn: '15m' });
                 
                 return res.json({
@@ -94,60 +117,81 @@ module.exports = {
                     message: "OTP verified",
                     token
                 });
-            } else {
-                return res.status(400).json({
+            } catch (err) {
+                console.error('OTP verification error:', err);
+                return res.status(500).json({
                     success: 0,
-                    message: "Invalid or expired OTP"
+                    message: "Failed to verify OTP",
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
                 });
             }
-        } catch (err) {
-            console.error('OTP verification error:', err);
-            return res.status(500).json({
-                success: 0,
-                message: "Failed to verify OTP"
-            });
-        }
-    },
+        },        
     
     resetPasswordWithOTP: async (req, res) => {
         try {
             const { email, newPassword, token } = req.body;
             
+            if (!email || !newPassword || !token) {
+                return res.status(400).json({
+                    success: 0,
+                    message: "Email, new password and token are required"
+                });
+            }
+
             // Verify token
+            let decoded;
             try {
-                verify(token, "qwe1234");
+                decoded = verify(token, "qwe1234");
+                if (decoded.email !== email) {
+                    return res.status(401).json({
+                        success: 0,
+                        message: "Token does not match email"
+                    });
+                }
             } catch (err) {
+                console.error('Token verification error:', err);
                 return res.status(401).json({
                     success: 0,
-                    message: "Invalid or expired token"
+                    message: "Invalid or expired token",
+                    error: err.message
                 });
             }
             
+            // Validate password length
+            if (newPassword.length < 8) {
+                return res.status(400).json({
+                  success: 0,
+                  message: "Password must be at least 8 characters"
+                });
+              }
+              
             // Update password
             const updated = await updatePassword(email, newPassword);
             
-            if (updated) {
-                // Clear the OTP
-                await clearOTP(email);
-                
-                return res.json({
-                    success: 1,
-                    message: "Password updated successfully"
-                });
-            } else {
+            if (!updated) {
                 return res.status(400).json({
                     success: 0,
                     message: "Failed to update password"
                 });
             }
-        } catch (err) {
-            console.error('Password reset error:', err);
-            return res.status(500).json({
-                success: 0,
-                message: "Failed to reset password"
-            });
-        }
-    },
+    
+            await clearOTP(email);
+                
+                return res.json({
+                    success: 1,
+                    message: "Password updated successfully"
+                });
+              } catch (err) {
+        console.error('Password reset error:', err);
+        return res.status(500).json({
+            success: 0,
+            message: "Failed to reset password",
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
+    }
+},
 
     deleteAccount: async (req, res) => {
         try {
