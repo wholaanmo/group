@@ -521,10 +521,21 @@
     <div v-for="photo in groupPhotos" :key="photo.id" class="photo-card">
       <div class="photo-wrapper">
         <img :src="photo.image_url" :alt="photo.description || 'Group photo'" @click="openPhotoModal(photo)" class="photo-thumbnail" @error="handleImageError">
-        <div class="photo-actions" v-if="canDeletePhoto(photo)">
-          <button @click.stop="confirmDeletePhoto(photo)" class="delete-photo-btn">
-            <i class="fas fa-trash"></i>
-          </button>
+        <div class="photo-actions" v-if="canEditPhoto(photo) || canDeletePhoto(photo)">
+  <button 
+    v-if="canEditPhoto(photo)" 
+    @click.stop="editPhoto(photo)" 
+    class="edit-photo-btn"
+  >
+    <i class="fas fa-edit"></i>
+  </button>
+  <button 
+    v-if="canDeletePhoto(photo)" 
+    @click.stop="confirmDeletePhoto(photo)" 
+    class="delete-photo-btn"
+  >
+    <i class="fas fa-trash"></i>
+  </button>
         </div>
       </div>
       <div class="photo-meta">
@@ -591,6 +602,51 @@
       </div>
     </div>
   </div>
+
+  <!-- Edit Photo Modal -->
+  <div v-if="editingPhoto" class="modal-overlay5">
+  <div class="modal-content5 photo-edit-modal">
+    <div class="modal-header6">
+      <h3>Edit Photo Details</h3>
+      <button @click="editingPhoto = null" class="close-button">&times;</button>
+    </div>
+    <div class="modal-body5">
+      <form @submit.prevent="updatePhoto">
+        <div class="form-group5">
+          <label>Photo Description</label>
+          <textarea v-model="editingPhoto.description" placeholder="Update description"></textarea>
+        </div>
+        
+        <div class="form-group5">
+          <label>Replace Photo (Optional)</label>
+          <input 
+            type="file" 
+            ref="editPhotoInput"
+            accept="image/*"
+            @change="handleEditFileSelect"
+          >
+          <div v-if="editPhotoPreview" class="photo-preview1">
+            <img :src="editPhotoPreview" alt="Preview">
+          </div>
+          <div v-else class="current-photo">
+            <p>Current Photo:</p>
+            <img :src="editingPhoto.image_url" :alt="editingPhoto.description" class="photo-thumbnail">
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" @click="editingPhoto = null" class="cancel-button">Cancel</button>
+          <button type="submit" class="submit-button" :disabled="updatingPhoto">
+            <span v-if="updatingPhoto">
+              <i class="fas fa-spinner fa-spin"></i> Updating...
+            </span>
+            <span v-else>Update Photo</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
   <!-- Photo Upload Modal -->
 <div v-if="showUploadModal" class="modal-overlay5">
@@ -921,13 +977,16 @@ export default {
   },
   data() {
     return {
+      editPhotoPreview: null,
+      editPhotoFile: null,
+      editingPhoto: null,  // Initialize as null
+      updatingPhoto: false,
       zoomLevel: 1,
-    isDragging: false,
-    dragStart: { x: 0, y: 0 },
-    translate: { x: 0, y: 0 },
-    lastPosition: { x: 0, y: 0 },
+      isDragging: false,
+      dragStart: { x: 0, y: 0 },
+      translate: { x: 0, y: 0 },
+      lastPosition: { x: 0, y: 0 },
       pendingInvites: [],
-      showInvitesModal: false,
       memberContributions: [],
       contributions: [],
       paidAmountInput: 0,
@@ -1205,6 +1264,90 @@ export default {
   console.log('Group component created');
   
   this.setupVoiceRecognition();
+  
+  // Handle invitation token first
+  const inviteToken = this.$route.query.inviteToken || localStorage.getItem('invitationToken');
+  if (inviteToken) {
+    try {
+      await this.handleInviteAcceptance(inviteToken);
+      const response = await this.$axios.get(
+        `/api/grp_expenses/invite/accept?token=${inviteToken}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        // If requires login, redirect to login with token
+        if (response.data.requiresAuth) {
+          localStorage.setItem('invitationToken', inviteToken);
+          this.$router.push({
+            path: '/login',
+            query: { 
+              redirect: `/group/${response.data.data.groupId}`,
+              inviteToken: inviteToken 
+            }
+          });
+          return;
+        }
+        
+        // If successful, clear token and proceed
+        this.$notify({
+          title: 'Success',
+          message: `You've joined ${response.data.data.groupName}`,
+          type: 'success'
+        });
+        
+        localStorage.removeItem('invitationToken');
+        
+        // Update the localGroupId if different
+        if (this.localGroupId !== response.data.data.groupId) {
+          this.localGroupId = response.data.data.groupId;
+          this.$router.push(response.data.data.redirectUrl || `/group/${response.data.data.groupId}`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to process invitation:', err);
+      this.$notify({
+        title: 'Error',
+        message: err.response?.data?.message || 'Failed to accept invitation',
+        type: 'error'
+      });
+    }
+  }
+
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = localStorage.getItem('jsontoken');
+
+  if (!user || !token) {
+    this.$router.push('/login');
+    return;
+  }
+
+  if (!this.localGroupId) {
+    console.error('Missing groupId parameter');
+    this.$router.push('/GC');
+    return;
+  }
+
+  try {
+    // Verify membership
+    const verifyResponse = await this.$axios.get(
+      `/api/grp_expenses/${this.localGroupId}/verify-membership`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    if (!verifyResponse.data.isMember) {
+      throw new Error('Not a group member');
+    }
+
 
     if (this.groupId) {
       this.isBudgetLoading = true;
@@ -1227,27 +1370,6 @@ export default {
       }
     }
 
-    const user = JSON.parse(localStorage.getItem('user'));
-    const token = localStorage.getItem('jsontoken');
-
-    if (!user || !token) {
-    console.error('Missing authentication data');
-    this.$router.push('/login');
-    return;
-  }
-
-  if (this.$route.query.invite_check) {
-    await this.checkPendingInvites();
-  }
-
-  console.log('User authenticated, checking groupId');
-  if (!this.localGroupId) {
-      console.error('Missing groupId parameter');
-      this.$router.push('/GC');
-      return;
-    }
-
-  try {
     console.log('Initializing group data...');
     await this.initializeGroupData();
     console.log('Fetching photos...');
@@ -1264,6 +1386,8 @@ export default {
     await this.loadExpenses();
     console.log('Fetching exchange rates...');
     await this.fetchExchangeRate();
+    console.log('Fetching user groups...');
+    await this.fetchUserGroups();
     console.log('All data loaded successfully');
     
     this.originalName = this.group.group_name || '';
@@ -1307,6 +1431,15 @@ export default {
       'updateGroupBudget'
     //  'fetchAvailableBudgets'
     ]),
+
+    editPhoto(photo) {
+  this.editingPhoto = { ...photo };
+},
+
+canEditPhoto(photo) {
+    const user = JSON.parse(localStorage.getItem('user'));
+    return photo.user_id === user.id;
+  },
 
     zoomIn() {
     if (this.zoomLevel < 3) {
@@ -1725,6 +1858,108 @@ export default {
   });
 },
 
+handleEditFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) {
+    // Validate file type and size
+    if (!file.type.match('image.*')) {
+      this.showError('Please select an image file (JPEG, PNG, etc.)');
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      this.showError('Image size should be less than 5MB');
+      return;
+    }
+    
+    this.editPhotoFile = file;
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.editPhotoPreview = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+},
+
+handleEditFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) {
+    // Validate file type and size
+    if (!file.type.match('image.*')) {
+      this.showError('Please select an image file (JPEG, PNG, etc.)');
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      this.showError('Image size should be less than 5MB');
+      return;
+    }
+    
+    this.editPhotoFile = file;
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.editPhotoPreview = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+},
+
+async updatePhoto() {
+  if (!this.editingPhoto) return;
+  
+  this.updatingPhoto = true;
+  
+  try {
+    const formData = new FormData();
+    formData.append('description', this.editingPhoto.description);
+    
+    // Only append file if it was selected
+    if (this.editPhotoFile) {
+      formData.append('photo', this.editPhotoFile);
+    }
+    
+    const response = await this.$axios.put(
+      `/api/grp_expenses/groups/${this.localGroupId}/photos/${this.editingPhoto.id}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      }
+    );
+    
+    if (response.data.success) {
+      // Update the photo in the local array
+      const index = this.groupPhotos.findIndex(p => p.id === this.editingPhoto.id);
+      if (index !== -1) {
+        // If new image was uploaded, update the URL
+        if (response.data.photo && response.data.photo.image_url) {
+          this.groupPhotos[index].image_url = response.data.photo.image_url.startsWith('/uploads') 
+            ? `${this.$axios.defaults.baseURL}${response.data.photo.image_url}`
+            : response.data.photo.image_url;
+        }
+        this.groupPhotos[index].description = this.editingPhoto.description;
+      }
+      
+      this.showSuccess('Photo updated successfully!');
+      this.editingPhoto = null;
+      this.editPhotoPreview = null;
+      this.editPhotoFile = null;
+      if (this.$refs.editPhotoInput) {
+        this.$refs.editPhotoInput.value = '';
+      }
+    }
+  } catch (err) {
+    console.error('Error updating photo:', err);
+    this.showError(err.response?.data?.message || 'Failed to update photo');
+  } finally {
+    this.updatingPhoto = false;
+  }
+},
+
 async fetchPhotos() {
     this.photosLoading = true;
     this.photosError = null;
@@ -1796,6 +2031,7 @@ async fetchPhotos() {
     formData.append('photo', this.newPhoto.file);
     formData.append('description', this.newPhoto.description);
     
+    const user = JSON.parse(localStorage.getItem('user'));
     const response = await this.$axios.post(
       `/api/grp_expenses/groups/${this.localGroupId}/photos`,
       formData,
@@ -1808,9 +2044,9 @@ async fetchPhotos() {
     );
     
     if (response.data.success) {
-      const user = JSON.parse(localStorage.getItem('user'));
       const photo = {
         ...response.data.photo,
+        user_id: user.id, 
         username: user.username, // Make sure username is included
         created_at: new Date().toISOString(), // Ensure date is included
         image_url: response.data.photo.image_url.startsWith('/uploads') 
@@ -1852,6 +2088,11 @@ async fetchPhotos() {
   },
   
   confirmDeletePhoto(photo) {
+    if (!this.canDeletePhoto(photo)) {
+    this.showError('Only the photo uploader can delete this photo');
+    return;
+  }
+
     this.confirmationTitle = 'Delete Photo';
     this.confirmationMessage = 'Are you sure you want to delete this photo?';
     this.confirmAction = async () => {
@@ -1887,8 +2128,84 @@ async fetchPhotos() {
   
   canDeletePhoto(photo) {
     const user = JSON.parse(localStorage.getItem('user'));
-    return this.isAdmin || photo.user_id === user.id;
+    return photo.user_id === user.id;
   },
+
+  async handleInviteAcceptance() {
+  const inviteToken = this.$route.query.inviteToken || localStorage.getItem('invitationToken');
+  if (!inviteToken) return;
+  
+  try {
+    const response = await this.$axios.get(
+      `/api/grp_expenses/invite/accept?token=${inviteToken}`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      }
+    );
+    
+    if (response.data.success) {
+      if (response.data.requiresAuth) {
+        // Store token and redirect to login
+        localStorage.setItem('invitationToken', inviteToken);
+        this.$router.push({
+          path: '/login',
+          query: { 
+            redirect: `/group/${response.data.data.groupId}`,
+            inviteToken: inviteToken 
+          }
+        });
+        return;
+      }
+      
+      // Clear token and proceed if no auth required
+      localStorage.removeItem('invitationToken');
+      
+      // Update the localGroupId if different
+      if (this.localGroupId !== response.data.data.groupId) {
+        this.localGroupId = response.data.data.groupId;
+        this.$router.push(response.data.data.redirectUrl || `/group/${response.data.data.groupId}`);
+        return;
+      }
+      
+      // Refresh group data
+      await this.fetchGroupData();
+    }
+  } catch (err) {
+    console.error('Failed to process invitation:', err);
+    this.$notify({
+      title: 'Error',
+      message: err.response?.data?.message || 'Failed to accept invitation',
+      type: 'error'
+    });
+  }
+},
+
+async verifyMembership() {
+  try {
+    const response = await this.$axios.get(
+      `/api/grp_expenses/${this.localGroupId}/verify-membership`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      }
+    );
+    
+    if (response.data.success && !response.data.isMember) {
+      this.$notify({
+        title: 'Access Denied',
+        message: 'You are not a member of this group',
+        type: 'error'
+      });
+      this.$router.push('/GC');
+    }
+  } catch (error) {
+    console.error('Failed to verify membership:', error);
+    this.$router.push('/GC');
+  }
+},
 
 async checkPendingInvites() {
     try {
@@ -1904,8 +2221,7 @@ async checkPendingInvites() {
       );
       
       if (response.data.success && response.data.data.length > 0) {
-        this.showInvitesModal = true;
-        this.pendingInvites = response.data.data;
+        await this.acceptInvite(response.data.data[0]);
       }
     } catch (err) {
       console.error('Failed to check pending invites:', err);
@@ -1934,13 +2250,12 @@ async fetchPendingInvites() {
 
 showInvites() {
   this.fetchPendingInvites();
-  this.showInvitesModal = true;
 },
 
 async acceptInvite(invite) {
     try {
       const response = await this.$axios.get(
-        `/api/grp_expenses/accept-invite?token=${invite.token}`,
+        `/api/grp_expenses/invite/accept?token=${invite.token}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
@@ -1949,34 +2264,28 @@ async acceptInvite(invite) {
       );
       
       if (response.data.success) {
-        this.$notify({
-          title: 'Success',
-          message: `You've joined ${invite.group_name}`,
-          type: 'success'
-        });
+      this.$notify({
+        title: 'Success',
+        message: `You've joined ${response.data.data.groupName}`,
+        type: 'success'
+      });
         
         // Refresh the invites list
-        await this.fetchUserGroups();
-       // await this.fetchPendingInvites();
-        
-        // If we're not currently in a group, navigate to the new group
-        if (!this.localGroupId || this.localGroupId !== invite.group_id) {
-        this.$router.push({
-          name: 'Group',
-          params: { groupId: invite.group_id }
-        });
+        await this.fetchGroupData();
+      
+      // Navigate to group if not already there
+      if (this.localGroupId !== response.data.data.groupId) {
+        this.$router.push(`/group/${response.data.data.groupId}`);
       } else {
+        // If already on the group page, refresh the data
         await Promise.all([
-          this.fetchGroupData(),
           this.fetchContributions(),
           this.fetchContributionHistory(),
           this.fetchPhotos()
         ]);
       }
-        
-        this.showInvitesModal = false;
-      }
-    } catch (err) {
+    }
+  } catch (err) {
     console.error('Failed to accept invitation:', err);
     this.$notify({
       title: 'Error',
@@ -2855,7 +3164,7 @@ showError(message) {
       this.showConfirmationModal = true;
     },
     
-    async sendInvite() {
+  async sendInvite() {
   this.inviteError = '';
   this.inviteSuccess = '';
   
@@ -3022,33 +3331,49 @@ showError(message) {
 
 beforeRouteEnter(to, from, next) {
   next(async vm => {
+    const inviteToken = to.query.inviteToken;
+    if (inviteToken) {
+      try {
+        const response = await vm.$axios.get(
+          `/api/grp_expenses/invite/accept?token=${inviteToken}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+            }
+          }
+        );
+
+if (response.data.success) {
+          if (response.data.requiresAuth) {
+            localStorage.setItem('invitationToken', inviteToken);
+            vm.$router.replace({
+              path: '/login',
+              query: { 
+                redirect: to.path,
+                inviteToken: inviteToken 
+              }
+            });
+            return;
+          }
+          
+          localStorage.removeItem('invitationToken');
+          
+          if (!to.params.groupId && response.data.data.groupId) {
+            to.params.groupId = response.data.data.groupId;
+          }
+        }
+      } catch (err) {
+        console.error('Route guard invitation error:', err);
+      }
+    }
+    
     if (!to.params.groupId) {
       next('/GC');
       return;
     }
-    
-    try {
-      // Wait for initial data load
-      await vm.initializeGroupData();
-      
-      // Check access again after data load
-      if (!vm.hasGroupAccess) {
-        // Check for pending invites
-        await vm.checkPendingInvites();
         
-        if (vm.pendingInvites.some(i => i.group_id == to.params.groupId)) {
-          // Show invite modal if they have a pending invite
-          vm.showInvitesModal = true;
-          return;
-        }
-        
-        next('/GC');
-      }
-    } catch (err) {
-      console.error('Route guard error:', err);
-      next('/GC');
-    }
-  });
+        // Rest of your existing route guard logic
+    });
 },
 
   beforeRouteUpdate(to, from, next) {
@@ -3065,6 +3390,11 @@ beforeRouteEnter(to, from, next) {
   this.groupPhotos = []; 
   
   this.localGroupId = to.params.groupId; 
+
+  const inviteToken = to.query.inviteToken;
+  if (inviteToken) {
+    localStorage.setItem('invitationToken', inviteToken);
+  }
 
   Promise.all([
     this.initializeGroupData(),
@@ -3215,6 +3545,47 @@ beforeRouteEnter(to, from, next) {
   font-size: 1.6rem;
   text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
+
+.modal-header6 {
+  padding: 35px 30px; 
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 3px solid #4f7a6b;
+  background: linear-gradient(135deg, #8bbcae, #6a9c89);
+  box-shadow: inset 0 -4px 6px rgba(0,0,0,0.1);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.modal-header6 h3 {
+  position: absolute;
+  left: 40%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 1.6rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.modal-header6 .close-button {
+  position: absolute;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #e4f9e4;
+  transition: color 0.3s ease;
+  padding: 5px;
+  border-radius: 50%;
+}
+
+.modal-header6 .close-button:hover {
+  color: #f9fefc;
+  background: rgba(255, 255, 255, 0.15);
+}
 .modal-header5 .close-button {
   position: absolute;
   right: 15px;
@@ -3351,8 +3722,9 @@ beforeRouteEnter(to, from, next) {
   right: 10px;
 }
 
-.delete-photo-btn {
-  background-color: rgba(255,0,0,0.7);
+/* EDIT BUTTON */
+.edit-photo-btn {
+  background: linear-gradient(135deg,#a7d1c3, #8bbcae, #6a9c89 );
   color: white;
   border: none;
   width: 30px;
@@ -3362,7 +3734,34 @@ beforeRouteEnter(to, from, next) {
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translateY(-4px); /* Slight lift */
+  transition: background 0.3s ease;
 }
+
+.edit-photo-btn:hover {
+  background: linear-gradient( 135deg, #9fcfc1,#7fb1a3, #5e8f7d );
+}
+
+
+/* DELETE BUTTON */
+.delete-photo-btn {
+  background: linear-gradient(135deg,rgba(255, 102, 102, 0.9),rgba(255, 80, 80, 0.9),rgba(200, 40, 40, 0.9) );
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s ease;
+}
+
+.delete-photo-btn:hover {
+  background: linear-gradient(135deg,rgba(255, 120, 120, 1),rgba(255, 60, 60, 1),rgba(180, 30, 30, 1) );
+}
+
 
 .photo-meta {
   padding: 10px;
@@ -3402,7 +3801,11 @@ beforeRouteEnter(to, from, next) {
 
 /* Photo Upload Modal */
 .photo-upload-modal {
-  max-width: 500px;
+  max-width: 430px;
+}
+
+.photo-edit-modal {
+  max-width: 400px;
 }
 
 .photo-preview {
@@ -3410,7 +3813,6 @@ beforeRouteEnter(to, from, next) {
   max-height: 300px;
   overflow: hidden;
 }
-
 .photo-preview img {
   width: 100%;
   height: auto;
@@ -3418,6 +3820,39 @@ beforeRouteEnter(to, from, next) {
   object-fit: contain;
 }
 
+.photo-preview1 {
+  margin-top: 8px;
+  max-height: 150px; /* Reduced from 300px */
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.photo-preview1 img {
+  width: auto;
+  height: auto;
+  max-height: 100px; /* Smaller image height */
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.current-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.current-photo img.photo-thumbnail {
+  width: auto;
+  height: auto;
+  max-height: 100px; /* Same height to match preview */
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
 /* Photo View Modal */
 .photo-view-modal .modal-content5 {
   max-width: 60%;
