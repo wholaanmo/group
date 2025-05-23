@@ -521,6 +521,104 @@ router.route('/groups/:groupId/photos')
   }
 );
 
+router.put('/groups/:groupId/photos/:photoId', 
+  groupAuth('member'), 
+  upload.single('photo'), // Add multer middleware
+  async (req, res) => {
+    let connection;
+    try {
+      const { groupId, photoId } = req.params;
+      const { description } = req.body;
+      const userId = req.user.userId;
+      
+      connection = await pool.getConnection();
+      await connection.query('START TRANSACTION');
+      
+      // Verify photo exists and user is the owner
+      const [photo] = await connection.query(
+        `SELECT user_id, image_url FROM group_photos 
+         WHERE id = ? AND group_id = ?`,
+        [photoId, groupId]
+      );
+      
+      if (!photo.length) {
+        await connection.query('ROLLBACK');
+        return res.status(404).json({ success: 0, message: 'Photo not found' });
+      }
+      
+      // Only photo owner can edit
+      if (photo[0].user_id !== userId) {
+        await connection.query('ROLLBACK');
+        return res.status(403).json({ 
+          success: 0, 
+          message: 'Only the photo owner can edit this photo' 
+        });
+      }
+      
+      let imageUrl = photo[0].image_url;
+      
+      // If new file was uploaded
+      if (req.file) {
+        // Delete old file
+        const oldFilePath = path.join(__dirname, '../../', imageUrl);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+        
+        // Generate new filename and path
+        const ext = path.extname(req.file.originalname);
+        const filename = `${Date.now()}${ext}`;
+        const uploadPath = path.join(__dirname, '../../uploads/group-photos', filename);
+        
+        // Move file from temp to permanent location
+        fs.renameSync(req.file.path, uploadPath);
+        
+        // Update image URL
+        imageUrl = `/uploads/group-photos/${filename}`;
+      }
+      
+      // Update in database
+      await connection.query(
+        `UPDATE group_photos 
+         SET description = ?, 
+             image_url = ?
+         WHERE id = ?`,
+        [description, imageUrl, photoId]
+      );
+      
+      await connection.query('COMMIT');
+      
+      // Return full URL if it was updated
+      const fullImageUrl = req.file 
+        ? `${req.protocol}://${req.get('host')}${imageUrl}`
+        : null;
+      
+      return res.json({ 
+        success: 1, 
+        message: 'Photo updated successfully',
+        photo: {
+          id: photoId,
+          image_url: fullImageUrl || undefined, // Only include if changed
+          description
+        }
+      });
+    } catch (err) {
+      if (connection) await connection.query('ROLLBACK');
+      console.error('Error updating photo:', err);
+      // Clean up if file was uploaded but DB failed
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(500).json({ 
+        success: 0, 
+        message: 'Failed to update photo' 
+      });
+    } finally {
+      if (connection) connection.release();
+    }
+  }
+);
+
 router.delete('/groups/:groupId/photos/:photoId', 
   groupAuth('member'), 
   async (req, res) => {
@@ -551,9 +649,12 @@ router.delete('/groups/:groupId/photos/:photoId',
       }
       
       // Only admin or photo owner can delete
-      if (photo[0].user_id !== userId && photo[0].role !== 'admin') {
+      if (photo[0].user_id !== userId) {
         await connection.query('ROLLBACK');
-        return res.status(403).json({ success: 0, message: 'Not authorized to delete this photo' });
+        return res.status(403).json({ 
+          success: 0, 
+          message: 'Only the photo owner can delete this photo' 
+        });
       }
       
       // Delete file from filesystem
